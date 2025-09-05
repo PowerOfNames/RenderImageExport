@@ -368,8 +368,16 @@ VK_IMPORT_DEVICE
 			KHR_wayland_surface,
 			KHR_xlib_surface,
 			KHR_xcb_surface,
+#		if VK_EXPORTABLE_IMAGE
+			KHR_external_memory_fd,
+			KHR_external_semaphore_kd,
+#		endif
 #	elif BX_PLATFORM_WINDOWS
 			KHR_win32_surface,
+#		if VK_EXPORTABLE_IMAGE
+			KHR_external_memory_win32,
+			KHR_external_semaphore_win32,
+#		endif
 #	elif BX_PLATFORM_OSX
 			MVK_macos_surface,
 #	elif BX_PLATFORM_NX
@@ -406,8 +414,21 @@ VK_IMPORT_DEVICE
 		{ VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,    1, false, false, true,                                                          Layer::Count },
 		{ VK_KHR_XLIB_SURFACE_EXTENSION_NAME,       1, false, false, true,                                                          Layer::Count },
 		{ VK_KHR_XCB_SURFACE_EXTENSION_NAME,        1, false, false, true,                                                          Layer::Count },
+#		if VK_EXPORTABLE_IMAGE
+		// VK_KHR_external_memory is included since Vulkan 1.1
+		//{ "VK_KHR_external_memory",				1, false, false, true,															Layer::Count },
+		{ "VK_KHR_external_memory_fd",				1, false, false, true,															Layer::Count },
+		//vendor specific switch to VK_EXT_external_memory_dma_buf / VK_EXT_image_drm_format_modifier -> not supported yet
+		{ "VK_KHR_external_semaphore_fd",			1, false, false, true,															Layer::Count },
+#		endif
 #	elif BX_PLATFORM_WINDOWS
 		{ VK_KHR_WIN32_SURFACE_EXTENSION_NAME,      1, false, false, true,                                                          Layer::Count },
+#		if VK_EXPORTABLE_IMAGE
+		// VK_KHR_external_memory is included since Vulkan 1.1
+		//{ "VK_KHR_external_memory",				1, false, false, true,															Layer::Count },
+		{ "VK_KHR_external_memory_win32",			1, false, false, true,															Layer::Count },
+		{ "VK_KHR_external_semaphore_win32",		1, false, false, true,															Layer::Count },
+#		endif
 #	elif BX_PLATFORM_OSX
 		{ VK_MVK_MACOS_SURFACE_EXTENSION_NAME,      1, false, false, true,                                                          Layer::Count },
 #	elif BX_PLATFORM_NX

@@ -293,6 +293,10 @@
 		BGFX_VK_END_DEBUG_UTILS_LABEL(); \
 	BX_MACRO_BLOCK_END
 
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
+	#define VK_EXPORTABLE_IMAGE 1
+#endif
+
 namespace bgfx { namespace vk
 {
 
