@@ -4962,6 +4962,41 @@ namespace bgfx
 		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, NULL != _mem);
 	}
 
+	TextureHandle createExportableTexture2D(uint16_t _width, uint16_t _height, TextureFormat::Enum _format, uint64_t _flags)
+	{
+		bx::ErrorAssert err;
+		isTextureValid(_width, _height, 0, false, 1, _format, _flags, &err);
+
+		if (!err.isOk())
+		{
+			return BGFX_INVALID_HANDLE;
+		}
+
+		const uint8_t numMips = calcNumMips(false, _width, _height);
+
+		uint32_t size = sizeof(uint32_t) + sizeof(TextureCreate);
+		const Memory* mem = alloc(size);
+
+		bx::StaticMemoryBlockWriter writer(mem->data, mem->size);
+		uint32_t magic = BGFX_CHUNK_MAGIC_TEX;
+		bx::write(&writer, magic, bx::ErrorAssert{});
+
+		TextureCreate tc;
+		tc.m_width = _width;
+		tc.m_height = _height;
+		tc.m_depth = 0;
+		tc.m_numLayers = 1;
+		tc.m_numMips = numMips;
+		tc.m_format = _format;
+		tc.m_cubeMap = false;
+		tc.m_exportable = true;
+		tc.m_mem = NULL;
+		bx::write(&writer, tc, bx::ErrorAssert{});
+
+
+		return s_ctx->createExportableTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, false);
+	}
+
 	TextureHandle createTextureCube(uint16_t _size, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format, uint64_t _flags, const Memory* _mem)
 	{
 		bx::ErrorAssert err;
@@ -5147,6 +5182,12 @@ namespace bgfx
 	TextureHandle getTexture(FrameBufferHandle _handle, uint8_t _attachment)
 	{
 		return s_ctx->getTexture(_handle, _attachment);
+	}
+
+	bool getExportableMemoryHandle(TextureHandle _exportable, uint32_t* _memoryHandle)
+	{
+		//return s_ctx->getExportableMemoryHandle(_exportable, _memoryHandle);
+		return false;
 	}
 
 	void destroy(FrameBufferHandle _handle)

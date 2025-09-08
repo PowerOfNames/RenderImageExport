@@ -2837,8 +2837,8 @@ namespace bgfx
 	///   - `BGFX_SAMPLER_[U/V/W]_[MIRROR/CLAMP]` - Mirror or clamp to edge wrap
 	///     mode.
 	///   - `BGFX_SAMPLER_[MIN/MAG/MIP]_[POINT/ANISOTROPIC]` - Point or anisotropic
-	///     sampling.
-	///
+	///     sampling. 
+	/// 
 	/// @attention C99's equivalent binding is `bgfx_create_texture_2d_scaled`.
 	///
 	TextureHandle createTexture2D(
@@ -2905,6 +2905,33 @@ namespace bgfx
 		, TextureFormat::Enum _format
 		, uint64_t _flags = BGFX_TEXTURE_NONE|BGFX_SAMPLER_NONE
 		, const Memory* _mem = NULL
+		);
+
+
+	/// Create texture with size based on back-buffer ratio. Texture will maintain ratio
+	/// if back buffer resolution changes. Texture will be created with external memory accessibility.
+	/// Needs to be synced with externally accessible semaphores.
+	///
+	/// @param[in] _ratio Frame buffer size in respect to back-buffer size. See:
+	///   `BackbufferRatio::Enum`.
+	/// @param[in] _hasMips Indicates that texture contains full mip-map chain.
+	/// @param[in] _numLayers Number of layers in texture array. Must be 1 if caps
+	///   `BGFX_CAPS_TEXTURE_2D_ARRAY` flag is not set.
+	/// @param[in] _format Texture format. See: `TextureFormat::Enum`.
+	/// @param[in] _flags Texture creation (see `BGFX_TEXTURE_*`.), and sampler (see `BGFX_SAMPLER_*`)
+	///   flags. Default texture sampling mode is linear, and wrap mode is repeat.
+	///   - `BGFX_SAMPLER_[U/V/W]_[MIRROR/CLAMP]` - Mirror or clamp to edge wrap
+	///     mode.
+	///   - `BGFX_SAMPLER_[MIN/MAG/MIP]_[POINT/ANISOTROPIC]` - Point or anisotropic
+	///     sampling.
+	///
+	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
+	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
+	TextureHandle createExportableTexture2D(
+		  uint16_t _width
+		, uint16_t _height
+		, TextureFormat::Enum _format
+		, uint64_t _flags = BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE
 		);
 
 	/// Update 2D texture.
@@ -3206,6 +3233,17 @@ namespace bgfx
 		  FrameBufferHandle _handle
 		, uint8_t _attachment = 0
 		);
+
+	/// Obtain texture handle of frame buffer attachment.
+	///
+	/// @param[in] _exportable Exportable texture handle handle.
+	/// @param[in] _memoryHandle Pointer to memory handle.
+	///
+	/// @returns Returns false if _exportable is not an exportable texture created with createExportableTexture(...)
+	///
+	/// @attention C99's equivalent binding is `bgfx_get_texture`.
+	///
+	bool getExportableMemoryHandle(TextureHandle _exportable, uint32_t* _memoryHandle);
 
 	/// Destroy frame buffer.
 	///

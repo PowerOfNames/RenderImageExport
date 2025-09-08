@@ -219,6 +219,15 @@
 			/* VK_KHR_draw_indirect_count */                                \
 			VK_IMPORT_DEVICE_FUNC(true,  vkCmdDrawIndirectCountKHR);        \
 			VK_IMPORT_DEVICE_FUNC(true,  vkCmdDrawIndexedIndirectCountKHR); \
+			/*VK_KHR_external_memory_win32*/								\
+			VK_IMPORT_DEVICE_FUNC(true,  vkGetMemoryWin32HandleKHR);		\
+			/*VK_KHR_external_semaphore_win32*/								\
+			VK_IMPORT_DEVICE_FUNC(true,  vkGetSemaphoreWin32HandleKHR);		\
+			/*VK_KHR_external_memory_fd*/									\
+			VK_IMPORT_DEVICE_FUNC(true,  vkGetMemoryFdKHR);					\
+			/*VK_KHR_external_semaphore_fd*/								\
+			VK_IMPORT_DEVICE_FUNC(true,  vkGetSemaphoreFdKHR);				\
+
 
 #define VK_DESTROY                                \
 			VK_DESTROY_FUNC(Buffer);              \
@@ -293,9 +302,7 @@
 		BGFX_VK_END_DEBUG_UTILS_LABEL(); \
 	BX_MACRO_BLOCK_END
 
-#if BGFX_CONFIG_EXPORTABLE_IMAGE
-	#define VK_EXPORTABLE_IMAGE 1
-#endif
+
 
 namespace bgfx { namespace vk
 {
@@ -714,6 +721,7 @@ VK_DESTROY_FUNC(DescriptorSet);
 		uint8_t  m_requestedFormat;
 		uint8_t  m_textureFormat;
 		uint8_t  m_numMips;
+		bool	 m_externalMemoryAccess;
 
 		MsaaSamplerVK m_sampler;
 
