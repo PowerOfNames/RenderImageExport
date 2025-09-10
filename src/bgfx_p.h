@@ -324,6 +324,7 @@ namespace bgfx
 			Uniform,
 			VertexBuffer,
 			VertexLayout,
+			ExportableSyncObject,
 
 			Count
 		};
@@ -410,6 +411,7 @@ namespace bgfx
 	IMPLEMENT_HANDLE(Uniform);
 	IMPLEMENT_HANDLE(VertexBuffer);
 	IMPLEMENT_HANDLE(VertexLayout);
+	IMPLEMENT_HANDLE(ExportableSyncObject);
 
 #undef IMPLEMENT_HANDLE
 
@@ -559,7 +561,7 @@ namespace bgfx
 		uint16_t m_numLayers;
 		uint8_t  m_numMips;
 		bool     m_cubeMap;
-		bool m_exportable;
+		bool m_externalMemoryAccess;
 		const Memory* m_mem;
 	};
 
@@ -921,7 +923,11 @@ namespace bgfx
 			DestroyTexture,
 			DestroyFrameBuffer,
 			DestroyUniform,
-			ReadTexture,
+			ReadTexture
+#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)	
+			,								\
+			CreateExportableSyncObject
+#endif
 		};
 
 		void resize(uint32_t _capacity = 0)
@@ -3116,6 +3122,7 @@ namespace bgfx
 		virtual void submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter) = 0;
 		virtual void blitSetup(TextVideoMemBlitter& _blitter) = 0;
 		virtual void blitRender(TextVideoMemBlitter& _blitter, uint32_t _numIndices) = 0;
+		virtual void createExportableSyncObject(ExportableSyncObjectHandle _handle) = 0;
 	};
 
 	inline RendererContextI::~RendererContextI()
@@ -4587,7 +4594,8 @@ namespace bgfx
 			return handle;
 		}
 
-		BGFX_API_FUNC(TextureHandle createExportableTexture(const Memory* _mem, uint64_t _flags, uint8_t _skip, TextureInfo* _info, BackbufferRatio::Enum _ratio, bool _immutable))
+#if defined (BGFX_CONFIG_EXPORTABLE_IMAGE)
+		BGFX_API_FUNC(TextureHandle createExportableTexture(const Memory* _mem, uint64_t _flags, uint8_t _skip, TextureInfo* _info, BackbufferRatio::Enum _ratio, bool _immutable) )
 		{
 			BGFX_MUTEX_SCOPE(m_resourceApiLock);
 
@@ -4620,6 +4628,7 @@ namespace bgfx
 				_info->numMips = 0;
 				_info->bitsPerPixel = 0;
 				_info->cubeMap = false;
+				_info->externalMemoryAccess = true;
 
 				return BGFX_INVALID_HANDLE;
 			}
@@ -4670,6 +4679,25 @@ namespace bgfx
 
 			return handle;
 		}
+
+		BGFX_API_FUNC(ExportableSyncObjectHandle createExportableSyncObject())
+		{
+			BGFX_MUTEX_SCOPE(m_resourceApiLock);
+
+			ExportableSyncObjectHandle handle{ m_exportableSyncObjectHandle.alloc() };
+			BX_WARN(isValid(handle), "Failed to allocate sync object handle.");
+
+			if (!isValid(handle))
+				return BGFX_INVALID_HANDLE;
+
+			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::CreateExportableSyncObject);
+			cmdBuf.write(handle);
+
+			setDebugNameForHandle(handle);
+
+			return handle;
+		}
+#endif //BGFX_CONFIG_EXPORTABLE_IMAGE
 
 		BGFX_API_FUNC(void setName(TextureHandle _handle, const bx::StringView& _name) )
 		{
@@ -5431,6 +5459,7 @@ namespace bgfx
 		bx::HandleAllocT<BGFX_CONFIG_MAX_FRAME_BUFFERS> m_frameBufferHandle;
 		bx::HandleAllocT<BGFX_CONFIG_MAX_UNIFORMS> m_uniformHandle;
 		bx::HandleAllocT<BGFX_CONFIG_MAX_OCCLUSION_QUERIES> m_occlusionQueryHandle;
+		bx::HandleAllocT< BGFX_CONFIG_MAX_VIEWS * BGFX_CONFIG_MAX_BACK_BUFFERS> m_exportableSyncObjectHandle;
 
 		typedef bx::HandleHashMapT<BGFX_CONFIG_MAX_UNIFORMS*2> UniformHashMap;
 		UniformHashMap m_uniformHashMap;

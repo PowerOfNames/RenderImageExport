@@ -368,13 +368,13 @@ VK_IMPORT_DEVICE
 			KHR_wayland_surface,
 			KHR_xlib_surface,
 			KHR_xcb_surface,
-#		if VK_EXPORTABLE_IMAGE
+#		if defined(VK_EXPORTABLE_IMAGE)
 			KHR_external_memory_fd,
 			KHR_external_semaphore_kd,
 #		endif
 #	elif BX_PLATFORM_WINDOWS
 			KHR_win32_surface,
-#		if VK_EXPORTABLE_IMAGE
+#		if defined(VK_EXPORTABLE_IMAGE)
 			KHR_external_memory_win32,
 			KHR_external_semaphore_win32,
 #		endif
@@ -414,7 +414,7 @@ VK_IMPORT_DEVICE
 		{ VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,    1, false, false, true,                                                          Layer::Count },
 		{ VK_KHR_XLIB_SURFACE_EXTENSION_NAME,       1, false, false, true,                                                          Layer::Count },
 		{ VK_KHR_XCB_SURFACE_EXTENSION_NAME,        1, false, false, true,                                                          Layer::Count },
-#		if VK_EXPORTABLE_IMAGE
+#		if defined(VK_EXPORTABLE_IMAGE)
 		// VK_KHR_external_memory is included since Vulkan 1.1
 		//{ "VK_KHR_external_memory",				1, false, false, true,															Layer::Count },
 		{ "VK_KHR_external_memory_fd",				1, false, false, true,															Layer::Count },
@@ -423,7 +423,7 @@ VK_IMPORT_DEVICE
 #		endif
 #	elif BX_PLATFORM_WINDOWS
 		{ VK_KHR_WIN32_SURFACE_EXTENSION_NAME,      1, false, false, true,                                                          Layer::Count },
-#		if VK_EXPORTABLE_IMAGE
+#		if defined(VK_EXPORTABLE_IMAGE)
 		// VK_KHR_external_memory is included since Vulkan 1.1
 		//{ "VK_KHR_external_memory",				1, false, false, true,															Layer::Count },
 		{ "VK_KHR_external_memory_win32",			1, false, false, true,															Layer::Count },
@@ -2421,6 +2421,43 @@ VK_IMPORT_DEVICE
 			bgfx::release(mem);
 		}
 
+#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+		void createExportableSyncObject(ExportableSyncObjectHandle _handle) override
+		{
+			VkSemaphoreTypeCreateInfo stci;
+			stci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+			stci.pNext = NULL;
+			stci.semaphoreType = VK_SEMAPHORE_TYPE_BINARY;
+			stci.initialValue = 0;
+
+
+			VkExportSemaphoreCreateInfo esci;
+			esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
+#if defined(BX_PLATFORM_WINDOWS)
+			VkExportSemaphoreWin32HandleInfoKHR es32ci{};
+			es32ci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR;
+			es32ci.pNext = &stci;
+
+			esci.pNext = &es32ci;
+			esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#elif defined (BX_PLATFORM_LINUX)
+			esci.pNext = &stci;
+			esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
+
+			VkSemaphoreCreateInfo sci;
+			sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+			sci.pNext = &esci;
+			sci.flags = 0;
+
+			VkSemaphore semaphore = VK_NULL_HANDLE;
+			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &semaphore));
+		}
+#endif
+
+
+
+
 		void overrideInternal(TextureHandle /*_handle*/, uintptr_t /*_ptr*/) override
 		{
 		}
@@ -4136,6 +4173,33 @@ VK_IMPORT_DEVICE
 				}
 
 				vkUnmapMemory(m_device, _memory.mem);
+
+				readback.destroy();
+
+				return true;
+			}
+
+			return false;
+		}
+
+		bool readSwapChainToImage(const SwapChainVK& _swapChain, VkImage _image, SwapChainReadFunc _func)
+		{
+			if (isSwapChainReadable(_swapChain))
+			{
+				// source for the copy is the last rendered swapchain image
+				const VkImage image = _swapChain.m_backBufferColorImage[_swapChain.m_backBufferColorIdx];
+				const VkImageLayout layout = _swapChain.m_backBufferColorImageLayout[_swapChain.m_backBufferColorIdx];
+
+				const uint32_t width = _swapChain.m_sci.imageExtent.width;
+				const uint32_t height = _swapChain.m_sci.imageExtent.height;
+
+				ReadbackVK readback;
+				readback.create(image, width, height, _swapChain.m_colorFormat);
+				
+				readback.copyImageToImage(m_commandBuffer, _image, layout, VK_IMAGE_ASPECT_COLOR_BIT);
+
+				// stall for commandbuffer to finish
+				kick(true);
 
 				readback.destroy();
 
@@ -5942,6 +6006,84 @@ VK_DESTROY
 			);
 	}
 
+	void ReadbackVK::copyImageToImage(VkCommandBuffer _commandBuffer, VkImage _image, VkImageLayout _layout, VkImageAspectFlags _aspect, uint8_t _mip) const
+	{
+		BGFX_PROFILER_SCOPE("ReadbackVK::copyImageToImage", kColorFrame);
+		uint32_t mipWidth = bx::uint32_max(1, m_width >> _mip);
+		uint32_t mipHeight = bx::uint32_max(1, m_height >> _mip);
+
+		setImageMemoryBarrier(
+			_commandBuffer
+			, m_image
+			, _aspect
+			, _layout
+			, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+			, _mip
+			, 1
+			, 0
+			, 1
+		);
+
+		setImageMemoryBarrier(
+			_commandBuffer
+			, _image
+			, _aspect
+			, _layout
+			, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+			, _mip
+			, 1
+			, 0
+			, 1
+		);
+
+		VkImageCopy ic;
+		ic.dstOffset = { 0, 0, 0 };
+		ic.extent = { mipWidth, mipHeight, 1 };
+		ic.srcOffset = { 0, 0, 0 };
+		ic.srcSubresource.aspectMask = _aspect;
+		ic.dstSubresource.aspectMask = _aspect;
+		ic.srcSubresource.baseArrayLayer = 0;
+		ic.dstSubresource.baseArrayLayer = 0;
+		ic.srcSubresource.layerCount = 1;
+		ic.dstSubresource.layerCount = 1;
+		ic.srcSubresource.mipLevel = _mip;
+		ic.dstSubresource.mipLevel = _mip;
+
+		vkCmdCopyImage(
+			_commandBuffer
+			, m_image
+			, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+			, _image
+			, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+			, 1
+			, &ic
+		);
+
+		setImageMemoryBarrier(
+			_commandBuffer
+			, m_image
+			, _aspect
+			, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+			, _layout
+			, _mip
+			, 1
+			, 0
+			, 1
+		);
+
+		setImageMemoryBarrier(
+			_commandBuffer
+			, _image
+			, _aspect
+			, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+			, _layout
+			, _mip
+			, 1
+			, 0
+			, 1
+		);
+	}
+
 	void ReadbackVK::readback(VkDeviceMemory _memory, VkDeviceSize _offset, void* _data, uint8_t _mip) const
 	{
 		BGFX_PROFILER_SCOPE("ReadbackVK::readback", kColorResource);
@@ -6017,10 +6159,21 @@ VK_DESTROY
 			BX_ASSERT(m_numMips <= 1, "Can't create multisample image with mip chain.");
 		}
 
+
+#if defined(VK_EXPORTABLE_IMAGE)
+		VkExternalMemoryImageCreateInfo emic;
+		emic.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
+		emic.pNext = NULL;
+		emic.handleTypes = VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT;
+		const void* pNextChain = (const void*)&emic;
+#else
+		const void* pNextChain = NULL;
+#endif
+
 		// create texture and allocate its device memory
 		VkImageCreateInfo ici;
 		ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		ici.pNext = NULL;
+		ici.pNext = pNextChain;
 		ici.flags = 0
 			| (VK_IMAGE_VIEW_TYPE_CUBE == m_type
 				? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT
@@ -6200,6 +6353,8 @@ VK_DESTROY
 			m_numSides = ti.numLayers * (imageContainer.m_cubeMap ? 6 : 1);
 			const uint16_t numSides = ti.numLayers * (imageContainer.m_cubeMap ? 6 : 1);
 			const uint32_t numSrd = numSides * ti.numMips;
+
+			m_externalMemoryAccess = ti.externalMemoryAccess;
 
 			uint32_t kk = 0;
 

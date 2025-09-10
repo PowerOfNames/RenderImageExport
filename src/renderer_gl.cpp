@@ -3495,6 +3495,13 @@ namespace bgfx { namespace gl
 			release(mem);
 		}
 
+#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+		void createExportableSyncObject(ExportableSyncObjectHandle _handle) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		};
+#endif
+
 		void overrideInternal(TextureHandle _handle, uintptr_t _ptr) override
 		{
 			m_textures[_handle.idx].overrideInternal(_ptr);

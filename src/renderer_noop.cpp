@@ -189,6 +189,12 @@ namespace bgfx { namespace noop
 		{
 		}
 
+#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+		void createExportableSyncObject(ExportableSyncObjectHandle _handle) override
+		{
+		};
+#endif
+
 		void overrideInternal(TextureHandle /*_handle*/, uintptr_t /*_ptr*/) override
 		{
 		}

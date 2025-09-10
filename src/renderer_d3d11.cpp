@@ -1900,6 +1900,13 @@ namespace bgfx { namespace d3d11
 			release(mem);
 		}
 
+#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+		void createExportableSyncObject(ExportableSyncObjectHandle _handle) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		};
+#endif
+
 		void overrideInternal(TextureHandle _handle, uintptr_t _ptr) override
 		{
 			// Resource ref. counts might be messed up outside of bgfx.

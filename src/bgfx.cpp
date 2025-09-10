@@ -328,6 +328,7 @@ namespace bgfx
 		{ "U",    "Uniform"             },
 		{ "VB",   "VertexBuffer"        },
 		{ "VL",   "VertexLayout"        },
+		{ "ESO"   "ExportableSyncObject"},
 		{ "?",    "?"                   },
 	};
 	static_assert(BX_COUNTOF(s_typeName) == Handle::Count+1, "");
@@ -3384,6 +3385,18 @@ namespace bgfx
 				}
 				break;
 
+#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+			case CommandBuffer::CreateExportableSyncObject:
+				{
+					BGFX_PROFILER_SCOPE("CreateExportableSyncObject", 0xff2040ff);
+
+					ExportableSyncObjectHandle handle;
+					_cmdbuf.read(handle);
+
+					m_renderCtx->createExportableSyncObject(handle);
+				}
+				break;
+#endif
 			default:
 				BX_ASSERT(false, "Invalid command: %d", command);
 				break;
@@ -4962,6 +4975,7 @@ namespace bgfx
 		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, NULL != _mem);
 	}
 
+#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
 	TextureHandle createExportableTexture2D(uint16_t _width, uint16_t _height, TextureFormat::Enum _format, uint64_t _flags)
 	{
 		bx::ErrorAssert err;
@@ -4989,13 +5003,17 @@ namespace bgfx
 		tc.m_numMips = numMips;
 		tc.m_format = _format;
 		tc.m_cubeMap = false;
-		tc.m_exportable = true;
+		tc.m_externalMemoryAccess = true;
 		tc.m_mem = NULL;
 		bx::write(&writer, tc, bx::ErrorAssert{});
 
-
 		return s_ctx->createExportableTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, false);
 	}
+	ExportableSyncObjectHandle createExportableSyncObject()
+	{
+		return s_ctx->createExportableSyncObject();
+	}
+#endif //BGFX_CONFIG_EXPORTABLE_IMAGE
 
 	TextureHandle createTextureCube(uint16_t _size, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format, uint64_t _flags, const Memory* _mem)
 	{

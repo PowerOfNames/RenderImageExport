@@ -284,6 +284,10 @@
 #	define BGFX_VK_END_DEBUG_UTILS_LABEL() BX_NOOP()
 #endif // BGFX_CONFIG_DEBUG_ANNOTATION
 
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
+#define VK_EXPORTABLE_IMAGE
+#endif
+
 #define BGFX_VK_PROFILER_BEGIN(_view, _abgr)                      \
 	BX_MACRO_BLOCK_BEGIN                                          \
 		BGFX_VK_BEGIN_DEBUG_UTILS_LABEL(s_viewName[view], _abgr); \
@@ -674,6 +678,7 @@ VK_DESTROY_FUNC(DescriptorSet);
 		void destroy();
 		uint32_t pitch(uint8_t _mip = 0) const;
 		void copyImageToBuffer(VkCommandBuffer _commandBuffer, VkBuffer _buffer, VkImageLayout _layout, VkImageAspectFlags _aspect, uint8_t _mip = 0) const;
+		void copyImageToImage(VkCommandBuffer _commandBuffer, VkImage _image, VkImageLayout _layout, VkImageAspectFlags _aspect, uint8_t _mip = 0) const;
 		void readback(VkDeviceMemory _memory, VkDeviceSize _offset, void* _data, uint8_t _mip = 0) const;
 
 		VkImage  m_image;
@@ -749,6 +754,15 @@ VK_DESTROY_FUNC(DescriptorSet);
 
 	constexpr uint32_t kMaxBackBuffers = bx::max(BGFX_CONFIG_MAX_BACK_BUFFERS, 10);
 
+	struct ExportableImageVk
+	{
+		TextureHandle m_imageHandle;
+		ExportableSyncObjectHandle m_syncObjectHandle;
+
+		VkSemaphore m_semaphore;
+		VkImage m_image;
+	};
+
 	struct SwapChainVK
 	{
 		SwapChainVK()
@@ -820,6 +834,8 @@ VK_DESTROY_FUNC(DescriptorSet);
 		TextureVK     m_backBufferColorMsaa;
 		VkImageView   m_backBufferColorMsaaImageView;
 		MsaaSamplerVK m_sampler;
+
+		ExportableImageVk m_exportableImage;
 
 		bool m_supportsReadback;
 		bool m_supportsManualResolve;
@@ -943,7 +959,7 @@ VK_DESTROY_FUNC(DescriptorSet);
 			Ty obj = vk_t(_handle);
 			vkDestroy(obj);
 		}
-	};
+	};	
 
 } /* namespace bgfx */ } // namespace vk
 

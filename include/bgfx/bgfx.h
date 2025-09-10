@@ -433,6 +433,7 @@ namespace bgfx
 	BGFX_HANDLE(UniformHandle)
 	BGFX_HANDLE(VertexBufferHandle)
 	BGFX_HANDLE(VertexLayoutHandle)
+	BGFX_HANDLE(ExportableSyncObjectHandle)
 
 	/// Callback interface to implement application specific behavior.
 	/// Cached items are currently used for OpenGL and Direct3D 12 binary
@@ -904,6 +905,7 @@ namespace bgfx
 		uint8_t numMips;            //!< Number of MIP maps.
 		uint8_t bitsPerPixel;       //!< Format bits per pixel.
 		bool    cubeMap;            //!< Texture is cubemap.
+		bool externalMemoryAccess;	//!< Texture memory is accessible via exported device handle
 	};
 
 	/// Uniform info.
@@ -2924,7 +2926,7 @@ namespace bgfx
 	///     mode.
 	///   - `BGFX_SAMPLER_[MIN/MAG/MIP]_[POINT/ANISOTROPIC]` - Point or anisotropic
 	///     sampling.
-	///
+	/// 
 	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
 	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
 	TextureHandle createExportableTexture2D(
@@ -2933,6 +2935,10 @@ namespace bgfx
 		, TextureFormat::Enum _format
 		, uint64_t _flags = BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE
 		);
+
+	/// Creates an external syncronization object, if BGFX_CONFIG_EXTERNAL_IMAGE is set.
+	/// -> Returns Invalid Handle if not using Vulkan OR BGFX_CONFIG_EXTERNAL_IMAGE is not set 
+	ExportableSyncObjectHandle createExportableSyncObject();
 
 	/// Update 2D texture.
 	///
