@@ -3390,12 +3390,60 @@ namespace bgfx
 				{
 					BGFX_PROFILER_SCOPE("CreateExportableSyncObject", 0xff2040ff);
 
+					FrameBufferHandle fbHandle;
+					_cmdbuf.read(fbHandle);
+
 					ExportableSyncObjectHandle handle;
 					_cmdbuf.read(handle);
 
-					m_renderCtx->createExportableSyncObject(handle);
+					m_renderCtx->createExportableSyncObject(fbHandle, handle);
 				}
 				break;
+
+			case CommandBuffer::UpdateExportableImage:
+				{
+					BGFX_PROFILER_SCOPE("UpdateExportableImage", 0xff2040ff);
+
+					FrameBufferHandle handle;
+					_cmdbuf.read(handle);
+
+					ExportableSyncObjectHandle exportableSync;
+					_cmdbuf.read(exportableSync);
+
+					TextureHandle exportableImage;
+					_cmdbuf.read(exportableImage);
+
+					m_renderCtx->updateExportableImage(handle, exportableSync, exportableImage);
+				}
+				break;
+
+			case CommandBuffer::GetNativeTextureMemoryHandle:
+			{
+				BGFX_PROFILER_SCOPE("GetNativeTextureMemoryHandle", 0xff2040ff);
+
+				TextureHandle handle;
+				_cmdbuf.read(handle);
+
+				void* native;
+				_cmdbuf.read(native);
+
+				m_renderCtx->getNativeTextureMemoryHandle(handle, native);
+			}
+			break;
+
+			case CommandBuffer::GetNativeSyncObjectMemoryHandle:
+			{
+				BGFX_PROFILER_SCOPE("GetNativeSyncObjectMemoryHandle", 0xff2040ff);
+
+				ExportableSyncObjectHandle handle;
+				_cmdbuf.read(handle);
+
+				void* native;
+				_cmdbuf.read(native);
+
+				m_renderCtx->getNativeSyncObjectMemoryHandle(handle, native);
+			}
+			break;
 #endif
 			default:
 				BX_ASSERT(false, "Invalid command: %d", command);
@@ -5009,9 +5057,25 @@ namespace bgfx
 
 		return s_ctx->createExportableTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, false);
 	}
-	ExportableSyncObjectHandle createExportableSyncObject()
+
+	ExportableSyncObjectHandle createExportableSyncObject(FrameBufferHandle _handle)
 	{
-		return s_ctx->createExportableSyncObject();
+		return s_ctx->createExportableSyncObject(_handle);
+	}
+
+	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage)
+	{
+		s_ctx->updateExportableImage(_handle, _exportableSync, _exportableImage);
+	}
+
+	void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native)
+	{
+		s_ctx->getNativeTextureMemoryHandle(_handle, _native);
+	}
+
+	void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native)
+	{
+		s_ctx->getNativeSyncObjectMemoryHandle(_handle, _native);
 	}
 #endif //BGFX_CONFIG_EXPORTABLE_IMAGE
 
@@ -5649,7 +5713,7 @@ namespace bgfx
 	{
 		BGFX_CHECK_API_THREAD();
 		s_ctx->requestScreenShot(_handle, _filePath);
-	}
+	}	
 
 #undef BGFX_CHECK_ENCODER0
 

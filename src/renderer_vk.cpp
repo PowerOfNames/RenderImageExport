@@ -2422,14 +2422,13 @@ VK_IMPORT_DEVICE
 		}
 
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
-		void createExportableSyncObject(ExportableSyncObjectHandle _handle) override
+		void createExportableSyncObject(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportable) override
 		{
 			VkSemaphoreTypeCreateInfo stci;
 			stci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
 			stci.pNext = NULL;
 			stci.semaphoreType = VK_SEMAPHORE_TYPE_BINARY;
 			stci.initialValue = 0;
-
 
 			VkExportSemaphoreCreateInfo esci;
 			esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
@@ -2453,8 +2452,60 @@ VK_IMPORT_DEVICE
 			VkSemaphore semaphore = VK_NULL_HANDLE;
 			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &semaphore));
 		}
-#endif
 
+		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override
+		{
+			const FrameBufferVK& frameBuffer = isValid(_handle)
+				? m_frameBuffers[_handle.idx]
+				: m_backBuffer
+				;
+			const SwapChainVK& swapChain = frameBuffer.m_swapChain;
+
+			if (!isSwapChainReadable(swapChain))
+			{
+				BX_TRACE("Unable to update external image");
+				return;
+			}
+						
+			const uint8_t bpp = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(swapChain.m_colorFormat));
+			const uint32_t size = frameBuffer.m_width * frameBuffer.m_height * bpp / 8;
+
+			const TextureVK& texture = m_textures[_exportableImage.idx];
+
+			readSwapChainToImage(swapChain, texture.m_textureImage);
+		}
+
+		void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native) override
+		{
+			const TextureVK& texture = m_textures[_handle.idx];
+			VkDeviceMemory memory = texture.m_textureDeviceMem.mem;
+
+#if defined (BX_PLATFORM_WINDOWS)
+			HANDLE h;
+			VkMemoryGetWin32HandleInfoKHR win32i;
+			win32i.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+			win32i.pNext = NULL;
+			win32i.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+			win32i.memory = memory;
+
+			VK_CHECK(vkGetMemoryWin32HandleKHR(m_device, &win32i, &h));
+			*static_cast<HANDLE*>(_native) = h;
+#elif defined (BX_PLATFORM_LINUX)
+			int h;
+			VkMemoryGetFdInfoKHR kdi;
+			kdi.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+			kdi.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+			kdi.memory = memory;
+			*static_cast<int*>(_native) = h;
+			VK_CHECK(vkGetMemoryFdKHR(m_device, &kdi, &h));
+#endif
+		}
+
+		void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native) override
+		{
+
+		}
+#endif
 
 
 
@@ -2582,6 +2633,8 @@ VK_IMPORT_DEVICE
 			recycleMemory(stagingMemory);
 		}
 
+
+
 		void updateViewName(ViewId _id, const char* _name) override
 		{
 			bx::strCopy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED]
@@ -2645,6 +2698,7 @@ VK_IMPORT_DEVICE
 			case Handle::VertexBuffer:
 				setDebugObjectName(m_device, m_vertexBuffers[_handle.idx].m_buffer, "%.*s", _len, _name);
 				break;
+
 
 			default:
 				BX_ASSERT(false, "Invalid handle type?! %d", _handle.type);
@@ -4182,7 +4236,7 @@ VK_IMPORT_DEVICE
 			return false;
 		}
 
-		bool readSwapChainToImage(const SwapChainVK& _swapChain, VkImage _image, SwapChainReadFunc _func)
+		bool readSwapChainToImage(const SwapChainVK& _swapChain, VkImage _image)
 		{
 			if (isSwapChainReadable(_swapChain))
 			{
@@ -4447,7 +4501,7 @@ VK_IMPORT_DEVICE
 			return -1;
 		}
 
-		VkResult allocateMemory(const VkMemoryRequirements* requirements, VkMemoryPropertyFlags propertyFlags, DeviceMemoryAllocationVK* memory, bool _forcePrivateDeviceAllocation)
+		VkResult allocateMemory(const VkMemoryRequirements* requirements, VkMemoryPropertyFlags propertyFlags, DeviceMemoryAllocationVK* memory, bool _forcePrivateDeviceAllocation, bool _externalMemoryAccess = false)
 		{
 			BGFX_PROFILER_SCOPE("RendererContextVK::allocateMemory", kColorResource);
 
@@ -4471,10 +4525,21 @@ VK_IMPORT_DEVICE
 				}
 			}
 
-
 			VkMemoryAllocateInfo ma;
 			ma.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+#if defined (VK_EXPORTABLE_IMAGE)
+			VkExportMemoryAllocateInfo emi;
+			emi.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
+			emi.pNext = NULL;
+#	if defined (BX_PLATFORM_WINDOWS)
+			emi.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#	elif defined (BX_PLATFORM_LINUX)
+			emi.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+#	endif
+			ma.pNext = _externalMemoryAccess ? &emi : NULL;
+#else
 			ma.pNext = NULL;
+#endif
 			ma.allocationSize = requirements->size;
 
 			VkResult result = VK_ERROR_UNKNOWN;
@@ -6165,7 +6230,7 @@ VK_DESTROY
 		emic.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
 		emic.pNext = NULL;
 		emic.handleTypes = VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT;
-		const void* pNextChain = (const void*)&emic;
+		const void* pNextChain = m_externalMemoryAccess ? (const void*)&emic : NULL;
 #else
 		const void* pNextChain = NULL;
 #endif
@@ -6223,7 +6288,7 @@ VK_DESTROY
 		VkMemoryRequirements imageMemReq;
 		vkGetImageMemoryRequirements(device, m_textureImage, &imageMemReq);
 
-		result = s_renderVK->allocateMemory(&imageMemReq, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_textureDeviceMem, false);
+		result = s_renderVK->allocateMemory(&imageMemReq, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_textureDeviceMem, false, m_externalMemoryAccess);
 		if (VK_SUCCESS != result)
 		{
 			BX_TRACE("Create texture image error: allocateMemory failed %d: %s.", result, getName(result) );
@@ -6266,7 +6331,7 @@ VK_DESTROY
 			VkMemoryRequirements imageMemReq_resolve;
 			vkGetImageMemoryRequirements(device, m_singleMsaaImage, &imageMemReq_resolve);
 
-			result = s_renderVK->allocateMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, false);
+			result = s_renderVK->allocateMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, false, m_externalMemoryAccess);
 			if (VK_SUCCESS != result)
 			{
 				BX_TRACE("Create texture image error: allocateMemory failed %d: %s.", result, getName(result) );

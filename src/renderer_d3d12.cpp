@@ -1954,10 +1954,26 @@ namespace bgfx { namespace d3d12
 		}
 
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
-		void createExportableSyncObject(ExportableSyncObjectHandle _handle) override
+		void createExportableSyncObject(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportable) override
 		{
 			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
-		};
+		}
+
+		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
+		void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
+		void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
 #endif
 
 		void overrideInternal(TextureHandle _handle, uintptr_t _ptr) override

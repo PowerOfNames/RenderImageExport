@@ -926,7 +926,10 @@ namespace bgfx
 			ReadTexture
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)	
 			,								\
-			CreateExportableSyncObject
+			CreateExportableSyncObject,
+			UpdateExportableImage,
+			GetNativeTextureMemoryHandle,
+			GetNativeSyncObjectMemoryHandle
 #endif
 		};
 
@@ -3122,7 +3125,12 @@ namespace bgfx
 		virtual void submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter) = 0;
 		virtual void blitSetup(TextVideoMemBlitter& _blitter) = 0;
 		virtual void blitRender(TextVideoMemBlitter& _blitter, uint32_t _numIndices) = 0;
-		virtual void createExportableSyncObject(ExportableSyncObjectHandle _handle) = 0;
+#if defined (BGFX_CONFIG_EXPORTABLE_IMAGE)
+		virtual void createExportableSyncObject(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportable) = 0;
+		virtual void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
+		virtual void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native);
+		virtual void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native);
+#endif
 	};
 
 	inline RendererContextI::~RendererContextI()
@@ -4680,22 +4688,49 @@ namespace bgfx
 			return handle;
 		}
 
-		BGFX_API_FUNC(ExportableSyncObjectHandle createExportableSyncObject())
+		BGFX_API_FUNC(ExportableSyncObjectHandle createExportableSyncObject(FrameBufferHandle _handle))
 		{
 			BGFX_MUTEX_SCOPE(m_resourceApiLock);
 
-			ExportableSyncObjectHandle handle{ m_exportableSyncObjectHandle.alloc() };
-			BX_WARN(isValid(handle), "Failed to allocate sync object handle.");
+			ExportableSyncObjectHandle exportableSyncHandle{ m_exportableSyncObjectHandle.alloc() };
+			BX_WARN(isValid(exportableSyncHandle), "Failed to allocate sync object handle.");
 
-			if (!isValid(handle))
+			if (!isValid(exportableSyncHandle))
 				return BGFX_INVALID_HANDLE;
 
 			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::CreateExportableSyncObject);
-			cmdBuf.write(handle);
+			cmdBuf.write(_handle);
+			cmdBuf.write(exportableSyncHandle);
 
-			setDebugNameForHandle(handle);
+			return exportableSyncHandle;
+		}
 
-			return handle;
+		BGFX_API_FUNC(void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage))
+		{
+			BGFX_MUTEX_SCOPE(m_resourceApiLock);
+
+			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::UpdateExportableImage);
+			cmdBuf.write(_handle);
+			cmdBuf.write(_exportableSync);
+			cmdBuf.write(_exportableImage);
+		}
+
+		BGFX_API_FUNC(void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native))
+		{
+			BGFX_MUTEX_SCOPE(m_resourceApiLock);
+
+			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::GetNativeTextureMemoryHandle);
+			cmdBuf.write(_handle);
+			cmdBuf.write(_native);
+		}
+
+		BGFX_API_FUNC(void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native))
+		{
+			BGFX_MUTEX_SCOPE(m_resourceApiLock);
+
+			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::GetNativeSyncObjectMemoryHandle);
+			cmdBuf.write(_handle);
+			cmdBuf.write(_native);
 		}
 #endif //BGFX_CONFIG_EXPORTABLE_IMAGE
 

@@ -190,9 +190,21 @@ namespace bgfx { namespace noop
 		}
 
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
-		void createExportableSyncObject(ExportableSyncObjectHandle _handle) override
+		void createExportableSyncObject(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportable) override
 		{
-		};
+		}
+
+		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override
+		{
+		}
+
+		void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native) override
+		{
+		}
+
+		void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native) override
+		{
+		}
 #endif
 
 		void overrideInternal(TextureHandle /*_handle*/, uintptr_t /*_ptr*/) override

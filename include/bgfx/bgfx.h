@@ -2909,16 +2909,12 @@ namespace bgfx
 		, const Memory* _mem = NULL
 		);
 
-
 	/// Create texture with size based on back-buffer ratio. Texture will maintain ratio
 	/// if back buffer resolution changes. Texture will be created with external memory accessibility.
 	/// Needs to be synced with externally accessible semaphores.
 	///
-	/// @param[in] _ratio Frame buffer size in respect to back-buffer size. See:
-	///   `BackbufferRatio::Enum`.
-	/// @param[in] _hasMips Indicates that texture contains full mip-map chain.
-	/// @param[in] _numLayers Number of layers in texture array. Must be 1 if caps
-	///   `BGFX_CAPS_TEXTURE_2D_ARRAY` flag is not set.
+	/// @param[in] _width Indicates width of the texture.
+	/// @param[in] _height Indicated the height of the texture.
 	/// @param[in] _format Texture format. See: `TextureFormat::Enum`.
 	/// @param[in] _flags Texture creation (see `BGFX_TEXTURE_*`.), and sampler (see `BGFX_SAMPLER_*`)
 	///   flags. Default texture sampling mode is linear, and wrap mode is repeat.
@@ -2938,7 +2934,30 @@ namespace bgfx
 
 	/// Creates an external syncronization object, if BGFX_CONFIG_EXTERNAL_IMAGE is set.
 	/// -> Returns Invalid Handle if not using Vulkan OR BGFX_CONFIG_EXTERNAL_IMAGE is not set 
-	ExportableSyncObjectHandle createExportableSyncObject();
+	ExportableSyncObjectHandle createExportableSyncObject(FrameBufferHandle _handle);
+
+	/// Returns the handle to native memory for exportable texture memory
+	/// @attention Only Platform supported: Vulkan on Windows and Linux
+	/// @attention Return needs to be cast to int on Linux systems
+	void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native);
+
+
+	/// Returns the handle to native memory for exportable sync object memory
+	/// @attention Only Platform supported: Vulkan on Windows and Linux.
+	/// @attention Return needs to be cast to int on Linux systems
+	void getNativeSyncObjectMemoryHandle(TextureHandle _handle, void* _native);
+
+	/// Updated the memory by copying the latest swapchain render into it.
+	///
+	/// @param[in] _handle Handle of the framebuffer owning the swapchain.
+	/// @param[in] _exportableSync Sync object for external syncing
+	/// @param[in] _exportableImage Target image.
+	/// 
+	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
+	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
+	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
+
+
 
 	/// Update 2D texture.
 	///

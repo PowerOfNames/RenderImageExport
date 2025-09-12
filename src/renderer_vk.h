@@ -835,8 +835,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 		VkImageView   m_backBufferColorMsaaImageView;
 		MsaaSamplerVK m_sampler;
 
-		ExportableImageVk m_exportableImage;
-
 		bool m_supportsReadback;
 		bool m_supportsManualResolve;
 	};
@@ -885,6 +883,8 @@ VK_DESTROY_FUNC(DescriptorSet);
 		void* m_nwh;
 		bool m_needPresent;
 		bool m_needResolve;
+
+		ExportableImageVk m_exportableImage[kMaxBackBuffers];
 
 		VkImageView m_textureImageViews[BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS];
 		VkFramebuffer m_framebuffer;
