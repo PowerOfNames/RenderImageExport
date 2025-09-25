@@ -561,7 +561,8 @@ namespace bgfx
 		uint16_t m_numLayers;
 		uint8_t  m_numMips;
 		bool     m_cubeMap;
-		bool m_externalMemoryAccess;
+		bool m_exportableMemory;
+		void* m_importedMemoryHandle;
 		const Memory* m_mem;
 	};
 
@@ -3126,9 +3127,9 @@ namespace bgfx
 		virtual void blitSetup(TextVideoMemBlitter& _blitter) = 0;
 		virtual void blitRender(TextVideoMemBlitter& _blitter, uint32_t _numIndices) = 0;
 #if defined (BGFX_CONFIG_EXPORTABLE_IMAGE)
-		virtual void createExportableSyncObject(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportable) = 0;
-		virtual void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
-		virtual void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native);
+		virtual void createExportableSyncObject(ExportableSyncObjectHandle _exportable) = 0;
+		virtual void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t _frameIdx);
+		virtual void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* _memSize);
 		virtual void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native);
 #endif
 	};
@@ -4603,92 +4604,7 @@ namespace bgfx
 		}
 
 #if defined (BGFX_CONFIG_EXPORTABLE_IMAGE)
-		BGFX_API_FUNC(TextureHandle createExportableTexture(const Memory* _mem, uint64_t _flags, uint8_t _skip, TextureInfo* _info, BackbufferRatio::Enum _ratio, bool _immutable) )
-		{
-			BGFX_MUTEX_SCOPE(m_resourceApiLock);
-
-			TextureInfo ti;
-			if (NULL == _info)
-			{
-				_info = &ti;
-			}
-
-			bimg::ImageContainer imageContainer;
-			if (bimg::imageParse(imageContainer, _mem->data, _mem->size))
-			{
-				calcTextureSize(*_info
-					, (uint16_t)imageContainer.m_width
-					, (uint16_t)imageContainer.m_height
-					, (uint16_t)imageContainer.m_depth
-					, imageContainer.m_cubeMap
-					, imageContainer.m_numMips > 1
-					, imageContainer.m_numLayers
-					, TextureFormat::Enum(imageContainer.m_format)
-				);
-			}
-			else
-			{
-				_info->format = TextureFormat::Unknown;
-				_info->storageSize = 0;
-				_info->width = 0;
-				_info->height = 0;
-				_info->depth = 0;
-				_info->numMips = 0;
-				_info->bitsPerPixel = 0;
-				_info->cubeMap = false;
-				_info->externalMemoryAccess = true;
-
-				return BGFX_INVALID_HANDLE;
-			}
-
-			_flags |= imageContainer.m_srgb ? BGFX_TEXTURE_SRGB : 0;
-
-			TextureHandle handle = { m_textureHandle.alloc() };
-			BX_WARN(isValid(handle), "Failed to allocate texture handle.");
-
-			if (!isValid(handle))
-			{
-				release(_mem);
-				return BGFX_INVALID_HANDLE;
-			}
-
-			TextureRef& ref = m_textureRef[handle.idx];
-			ref.init(
-				_ratio
-				, uint16_t(imageContainer.m_width)
-				, uint16_t(imageContainer.m_height)
-				, uint16_t(imageContainer.m_depth)
-				, _info->format
-				, _info->storageSize
-				, imageContainer.m_numMips
-				, imageContainer.m_numLayers
-				, 0 != (g_caps.supported & BGFX_CAPS_TEXTURE_DIRECT_ACCESS)
-				, _immutable
-				, imageContainer.m_cubeMap
-				, _flags
-			);
-
-			if (ref.isRt())
-			{
-				m_rtMemoryUsed += int64_t(ref.m_storageSize);
-			}
-			else
-			{
-				m_textureMemoryUsed += int64_t(ref.m_storageSize);
-			}
-
-			CommandBuffer& cmdbuf = getCommandBuffer(CommandBuffer::CreateTexture);
-			cmdbuf.write(handle);
-			cmdbuf.write(_mem);
-			cmdbuf.write(_flags);
-			cmdbuf.write(_skip);
-
-			setDebugNameForHandle(handle);
-
-			return handle;
-		}
-
-		BGFX_API_FUNC(ExportableSyncObjectHandle createExportableSyncObject(FrameBufferHandle _handle))
+		BGFX_API_FUNC(ExportableSyncObjectHandle createExportableSyncObject())
 		{
 			BGFX_MUTEX_SCOPE(m_resourceApiLock);
 
@@ -4699,13 +4615,12 @@ namespace bgfx
 				return BGFX_INVALID_HANDLE;
 
 			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::CreateExportableSyncObject);
-			cmdBuf.write(_handle);
 			cmdBuf.write(exportableSyncHandle);
 
 			return exportableSyncHandle;
 		}
 
-		BGFX_API_FUNC(void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage))
+		BGFX_API_FUNC(void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t _frameIdx))
 		{
 			BGFX_MUTEX_SCOPE(m_resourceApiLock);
 
@@ -4713,15 +4628,17 @@ namespace bgfx
 			cmdBuf.write(_handle);
 			cmdBuf.write(_exportableSync);
 			cmdBuf.write(_exportableImage);
+			cmdBuf.write(_frameIdx);
 		}
 
-		BGFX_API_FUNC(void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native))
+		BGFX_API_FUNC(void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* _memSize))
 		{
 			BGFX_MUTEX_SCOPE(m_resourceApiLock);
 
 			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::GetNativeTextureMemoryHandle);
 			cmdBuf.write(_handle);
 			cmdBuf.write(_native);
+			cmdBuf.write(_memSize);
 		}
 
 		BGFX_API_FUNC(void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native))
@@ -5494,7 +5411,7 @@ namespace bgfx
 		bx::HandleAllocT<BGFX_CONFIG_MAX_FRAME_BUFFERS> m_frameBufferHandle;
 		bx::HandleAllocT<BGFX_CONFIG_MAX_UNIFORMS> m_uniformHandle;
 		bx::HandleAllocT<BGFX_CONFIG_MAX_OCCLUSION_QUERIES> m_occlusionQueryHandle;
-		bx::HandleAllocT< BGFX_CONFIG_MAX_VIEWS * BGFX_CONFIG_MAX_BACK_BUFFERS> m_exportableSyncObjectHandle;
+		bx::HandleAllocT<BGFX_CONFIG_MAX_FRAME_BUFFERS * BGFX_CONFIG_MAX_BACK_BUFFERS> m_exportableSyncObjectHandle;
 
 		typedef bx::HandleHashMapT<BGFX_CONFIG_MAX_UNIFORMS*2> UniformHashMap;
 		UniformHashMap m_uniformHashMap;

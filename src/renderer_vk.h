@@ -107,6 +107,8 @@
 			/* VK_KHR_get_physical_device_properties2 */                               \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceFeatures2KHR);           \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceMemoryProperties2KHR);   \
+			VK_IMPORT_INSTANCE_FUNC(true, vkGetPhysicalDeviceImageFormatProperties2);  \
+																					   \
 			/* VK_EXT_debug_report */                                                  \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkCreateDebugReportCallbackEXT);            \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkDestroyDebugReportCallbackEXT);           \
@@ -163,6 +165,7 @@
 			VK_IMPORT_DEVICE_FUNC(false, vkCreateQueryPool);                \
 			VK_IMPORT_DEVICE_FUNC(false, vkDestroyQueryPool);               \
 			VK_IMPORT_DEVICE_FUNC(false, vkQueueSubmit);                    \
+			VK_IMPORT_DEVICE_FUNC(false, vkQueueSubmit2KHR);                \
 			VK_IMPORT_DEVICE_FUNC(false, vkQueueWaitIdle);                  \
 			VK_IMPORT_DEVICE_FUNC(false, vkDeviceWaitIdle);                 \
 			VK_IMPORT_DEVICE_FUNC(false, vkWaitForFences);                  \
@@ -494,6 +497,14 @@ VK_DESTROY_FUNC(DescriptorSet);
 		VkSampleCountFlagBits Sample;
 	};
 
+	struct ExportableSyncObjectVk
+	{
+		VkSemaphore ProducerSignals;
+		VkSemaphore ConsumerSignals;
+		VkSemaphore KeyedMutexSemaphoreWait;
+		VkSemaphore KeyedMutexSemaphoreSignal;
+	};
+
 	struct VertexBufferVK : public BufferVK
 	{
 		void create(VkCommandBuffer _commandBuffer, uint32_t _size, void* _data, VertexLayoutHandle _layoutHandle, uint16_t _flags);
@@ -726,7 +737,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 		uint8_t  m_requestedFormat;
 		uint8_t  m_textureFormat;
 		uint8_t  m_numMips;
-		bool	 m_externalMemoryAccess;
 
 		MsaaSamplerVK m_sampler;
 
@@ -747,21 +757,17 @@ VK_DESTROY_FUNC(DescriptorSet);
 
 		ReadbackVK m_readback;
 
+#if defined (VK_EXPORTABLE_IMAGE)
+		bool m_exportableMemory;
+		void* m_importedMemoryHandle;
+#endif
+
 	private:
 		VkResult createImages(VkCommandBuffer _commandBuffer);
 		static VkImageAspectFlags getAspectMask(VkFormat _format);
 	};
 
 	constexpr uint32_t kMaxBackBuffers = bx::max(BGFX_CONFIG_MAX_BACK_BUFFERS, 10);
-
-	struct ExportableImageVk
-	{
-		TextureHandle m_imageHandle;
-		ExportableSyncObjectHandle m_syncObjectHandle;
-
-		VkSemaphore m_semaphore;
-		VkImage m_image;
-	};
 
 	struct SwapChainVK
 	{
@@ -884,8 +890,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 		bool m_needPresent;
 		bool m_needResolve;
 
-		ExportableImageVk m_exportableImage[kMaxBackBuffers];
-
 		VkImageView m_textureImageViews[BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS];
 		VkFramebuffer m_framebuffer;
 		VkRenderPass m_renderPass;
@@ -904,6 +908,10 @@ VK_DESTROY_FUNC(DescriptorSet);
 		void addWaitSemaphore(VkSemaphore _semaphore, VkPipelineStageFlags _waitFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 		void addSignalSemaphore(VkSemaphore _semaphore);
 		void kick(bool _wait = false);
+#if defined (VK_EXPORTABLE_IMAGE)
+		//This kich method uses the newer submitInfo2 info and consumes keyed mutex semaphores
+		void kick2(bool _wait = false, uint8_t = 0);
+#endif
 		void finish(bool _finishAll = false);
 
 		void release(uint64_t _handle, VkObjectType _type);

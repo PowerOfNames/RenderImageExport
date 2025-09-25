@@ -905,7 +905,6 @@ namespace bgfx
 		uint8_t numMips;            //!< Number of MIP maps.
 		uint8_t bitsPerPixel;       //!< Format bits per pixel.
 		bool    cubeMap;            //!< Texture is cubemap.
-		bool externalMemoryAccess;	//!< Texture memory is accessible via exported device handle
 	};
 
 	/// Uniform info.
@@ -2932,20 +2931,45 @@ namespace bgfx
 		, uint64_t _flags = BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE
 		);
 
+	/// Create texture with size based on back-buffer ratio. Texture will maintain ratio
+	/// if back buffer resolution changes. Texture will be created with external memory accessibility.
+	/// Needs to be synced with externally accessible semaphores.
+	///
+	/// @param[in] _width Indicates width of the texture.
+	/// @param[in] _height Indicated the height of the texture.
+	/// @param[in] _externalHandle IS the memory handle of the external memory handle of a texture.
+	/// @param[in] _format Texture format. See: `TextureFormat::Enum`.
+	/// @param[in] _flags Texture creation (see `BGFX_TEXTURE_*`.), and sampler (see `BGFX_SAMPLER_*`)
+	///   flags. Default texture sampling mode is linear, and wrap mode is repeat.
+	///   - `BGFX_SAMPLER_[U/V/W]_[MIRROR/CLAMP]` - Mirror or clamp to edge wrap
+	///     mode.
+	///   - `BGFX_SAMPLER_[MIN/MAG/MIP]_[POINT/ANISOTROPIC]` - Point or anisotropic
+	///     sampling.
+	/// 
+	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
+	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
+	TextureHandle createImportedTexture2D(
+		  uint16_t _width
+		, uint16_t _height
+		, TextureFormat::Enum _format
+		, void* _externalHandle
+		, uint64_t _flags = BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE
+	);
+
 	/// Creates an external syncronization object, if BGFX_CONFIG_EXTERNAL_IMAGE is set.
 	/// -> Returns Invalid Handle if not using Vulkan OR BGFX_CONFIG_EXTERNAL_IMAGE is not set 
-	ExportableSyncObjectHandle createExportableSyncObject(FrameBufferHandle _handle);
+	ExportableSyncObjectHandle createExportableSyncObject();
 
 	/// Returns the handle to native memory for exportable texture memory
 	/// @attention Only Platform supported: Vulkan on Windows and Linux
 	/// @attention Return needs to be cast to int on Linux systems
-	void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native);
+	void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* memSize);
 
 
 	/// Returns the handle to native memory for exportable sync object memory
 	/// @attention Only Platform supported: Vulkan on Windows and Linux.
 	/// @attention Return needs to be cast to int on Linux systems
-	void getNativeSyncObjectMemoryHandle(TextureHandle _handle, void* _native);
+	void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native);
 
 	/// Updated the memory by copying the latest swapchain render into it.
 	///
@@ -2955,7 +2979,7 @@ namespace bgfx
 	/// 
 	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
 	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
-	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
+	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t frameIdx);
 
 
 
