@@ -380,6 +380,7 @@ VK_IMPORT_DEVICE
 #		if defined(VK_EXPORTABLE_IMAGE)
 			KHR_external_memory_win32,
 			KHR_external_semaphore_win32,
+			KHR_win32_keyed_mutex,
 			KHR_synchronization2,
 #		endif
 #	elif BX_PLATFORM_OSX
@@ -433,6 +434,7 @@ VK_IMPORT_DEVICE
 		//{ "VK_KHR_external_memory",				1, false, false, true,															Layer::Count },
 		{ "VK_KHR_external_memory_win32",			1, false, false, true,															Layer::Count },
 		{ "VK_KHR_external_semaphore_win32",		1, false, false, true,															Layer::Count },
+		{ "VK_KHR_win32_keyed_mutex",				1, false, false, true,															Layer::Count },
 		{ "VK_KHR_synchronization2",				1, false, false, true,															Layer::Count },
 #		endif
 #	elif BX_PLATFORM_OSX
@@ -1207,6 +1209,11 @@ VK_IMPORT_DEVICE
 			bx::memSet(&lineRasterizationFeatures, 0, sizeof(lineRasterizationFeatures) );
 			bx::memSet(&customBorderColorFeatures, 0, sizeof(customBorderColorFeatures) );
 
+#if defined (VK_EXPORTABLE_IMAGE)
+			VkPhysicalDeviceSynchronization2Features sync2Features;
+			bx::memSet(&sync2Features, 0, sizeof(sync2Features));
+#endif
+
 			m_fbh.idx = kInvalidHandle;
 			bx::memSet(m_uniforms, 0, sizeof(m_uniforms) );
 			bx::memSet(&m_resolution, 0, sizeof(m_resolution) );
@@ -1604,6 +1611,16 @@ VK_IMPORT_INSTANCE
 						customBorderColorFeatures.pNext = NULL;
 					}
 
+#if defined (VK_EXPORTABLE_IMAGE)
+					if (s_extension[Extension::KHR_synchronization2].m_supported)
+					{
+						next->pNext = (VkBaseOutStructure*)&sync2Features;
+						next = (VkBaseOutStructure*)&sync2Features;
+						sync2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+						sync2Features.pNext = NULL;
+						sync2Features.synchronization2 = true;
+					}
+#endif
 					nextFeatures = deviceFeatures2.pNext;
 
 					vkGetPhysicalDeviceFeatures2KHR(m_physicalDevice, &deviceFeatures2);
@@ -2458,6 +2475,8 @@ VK_IMPORT_DEVICE
 			auto& exportable = m_exportableSyncObjects[_exportable.idx];
 			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.KeyedMutexSemaphoreWait));
 			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.KeyedMutexSemaphoreSignal));
+			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.ProducerSignals));
+			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.ConsumerSignals));
 		}
 
 		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t _frameIdx) override
@@ -2479,7 +2498,7 @@ VK_IMPORT_DEVICE
 
 			const TextureVK& texture = m_textures[_exportableImage.idx];
 
-			readSwapChainToImage(swapChain, texture.m_textureImage, _exportableSync, _frameIdx);
+			readSwapChainToImage(swapChain, texture, _exportableSync, _frameIdx);
 		}
 
 
@@ -4354,7 +4373,7 @@ VK_IMPORT_DEVICE
 			return false;
 		}
 
-		bool readSwapChainToImage(const SwapChainVK& _swapChain, VkImage _image, ExportableSyncObjectHandle _exportableSync, uint8_t _frameIdx)
+		bool readSwapChainToImage(const SwapChainVK& _swapChain, const TextureVK& _image, ExportableSyncObjectHandle _exportableSync, uint8_t _frameIdx)
 		{
 			if (isSwapChainReadable(_swapChain))
 			{
@@ -4371,12 +4390,12 @@ VK_IMPORT_DEVICE
 				// stall for commandbuffer to finish
 				kick(true);
 
-
-				readback.copyImageToImage(m_commandBuffer, _image, layout, VK_IMAGE_ASPECT_COLOR_BIT);
+				readback.copyImageToImage(m_commandBuffer, _image.m_textureImage, layout, VK_IMAGE_ASPECT_COLOR_BIT);
 
 				const ExportableSyncObjectVk& sync = m_exportableSyncObjects[_exportableSync.idx];
-				m_cmd.addWaitSemaphore(sync.KeyedMutexSemaphoreWait);
-				m_cmd.addSignalSemaphore(sync.KeyedMutexSemaphoreSignal);
+				//m_cmd.addWaitSemaphore(sync.KeyedMutexSemaphoreWait);
+				//m_cmd.addSignalSemaphore(sync.KeyedMutexSemaphoreSignal);
+				m_cmd.setExternalMemory(_image.m_textureDeviceMem.mem);
 				kick2(true, _frameIdx);
 
 				readback.destroy();
@@ -8838,6 +8857,11 @@ VK_DESTROY
 	}
 
 #if defined (VK_EXPORTABLE_IMAGE)
+	void CommandQueueVK::setExternalMemory(VkDeviceMemory mem)
+	{
+		m_externalMemory = mem;
+	}
+
 	void CommandQueueVK::kick2(bool _wait /*= false*/, uint8_t frameIdx /*= 0*/)
 	{
 		BGFX_PROFILER_SCOPE("CommandQueueVK::kick2", kColorDraw);
@@ -8864,7 +8888,24 @@ VK_DESTROY
 			cmdBufInfo.deviceMask = 0;
 			cmdBufInfo.commandBuffer = m_activeCommandBuffer;
 
-			VkSemaphoreSubmitInfoKHR waitSemaInfo{};
+
+			uint64_t acquKey = frameIdx;
+			uint64_t relKey = (frameIdx + 1) % 2;
+			uint32_t timeOut = 0;
+			VkWin32KeyedMutexAcquireReleaseInfoKHR kmInfo{};
+			kmInfo.sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
+			kmInfo.pNext = nullptr;
+			kmInfo.acquireCount = 1;
+			kmInfo.pAcquireSyncs = &m_externalMemory;
+			kmInfo.pAcquireKeys = &acquKey;
+			kmInfo.pAcquireTimeouts = &timeOut;
+			kmInfo.releaseCount = 1;
+			kmInfo.pReleaseSyncs = &m_externalMemory;
+			kmInfo.pReleaseKeys = &relKey;
+			
+
+			// Only timeline semaphores work, no idea why this code kinda worked with the integrated intel GPU
+			/*VkSemaphoreSubmitInfoKHR waitSemaInfo{};
 			waitSemaInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
 			waitSemaInfo.pNext = nullptr;
 			waitSemaInfo.deviceIndex = 0;
@@ -8878,16 +8919,13 @@ VK_DESTROY
 			signalSemaInfo.deviceIndex = 0;
 			signalSemaInfo.semaphore = m_signalSemaphores[0];
 			signalSemaInfo.stageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-			signalSemaInfo.value = (frameIdx + 1)%2;
+			signalSemaInfo.value = (frameIdx + 1)%2;*/
 
 			VkSubmitInfo2KHR si2{};
 			si2.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2_KHR;
+			si2.pNext = &kmInfo;
 			si2.commandBufferInfoCount = 1;
-			si2.pCommandBufferInfos = &cmdBufInfo;
-			si2.waitSemaphoreInfoCount = 1;
-			si2.pWaitSemaphoreInfos = &waitSemaInfo;
-			si2.signalSemaphoreInfoCount = 1;
-			si2.pSignalSemaphoreInfos = &signalSemaInfo;			
+			si2.pCommandBufferInfos = &cmdBufInfo;	
 
 			m_numWaitSemaphores = 0;
 			m_numSignalSemaphores = 0;
