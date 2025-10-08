@@ -1954,12 +1954,24 @@ namespace bgfx { namespace d3d12
 		}
 
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+#if defined (BX_PLATFORM_WINDOWS)
+		void getDeviceLuid(uint8_t* luid) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
+#endif //Platform
+		void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
 		void createExportableSyncObject(ExportableSyncObjectHandle _exportable) override
 		{
 			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
 		}
 
-		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t _frameIdx) override
+		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t _frameIdx) override
 		{
 			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
 		}
@@ -2133,6 +2145,15 @@ namespace bgfx { namespace d3d12
 			readback->Unmap(0, &writeRange);
 
 			DX_RELEASE(readback, 0);
+		}
+
+		/// <summary>
+		/// Not implemented!
+		/// </summary>
+		/// <param name="_handle"></param>
+		/// <param name="_filePath"></param>
+		void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath) override
+		{
 		}
 
 		void updateViewName(ViewId _id, const char* _name) override

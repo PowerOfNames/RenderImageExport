@@ -374,6 +374,7 @@ VK_IMPORT_DEVICE
 			KHR_external_memory_fd,
 			KHR_external_semaphore_kd,
 			KHR_synchronization2,
+			EXT_pci_bus_info,
 #		endif
 #	elif BX_PLATFORM_WINDOWS
 			KHR_win32_surface,
@@ -382,6 +383,7 @@ VK_IMPORT_DEVICE
 			KHR_external_semaphore_win32,
 			KHR_win32_keyed_mutex,
 			KHR_synchronization2,
+			EXT_pci_bus_info,
 #		endif
 #	elif BX_PLATFORM_OSX
 			MVK_macos_surface,
@@ -426,6 +428,7 @@ VK_IMPORT_DEVICE
 		//vendor specific switch to VK_EXT_external_memory_dma_buf / VK_EXT_image_drm_format_modifier -> not supported yet
 		{ "VK_KHR_external_semaphore_fd",			1, false, false, true,															Layer::Count },
 		{ "VK_KHR_synchronization2",				1, false, false, true,															Layer::Count },
+		{ "VK_EXT_pci_bus_info",					1, false, false, true,															Layer::Count },
 #		endif
 #	elif BX_PLATFORM_WINDOWS
 		{ VK_KHR_WIN32_SURFACE_EXTENSION_NAME,      1, false, false, true,                                                          Layer::Count },
@@ -436,6 +439,7 @@ VK_IMPORT_DEVICE
 		{ "VK_KHR_external_semaphore_win32",		1, false, false, true,															Layer::Count },
 		{ "VK_KHR_win32_keyed_mutex",				1, false, false, true,															Layer::Count },
 		{ "VK_KHR_synchronization2",				1, false, false, true,															Layer::Count },
+		{ "VK_EXT_pci_bus_info",					1, false, false, true,															Layer::Count },
 #		endif
 #	elif BX_PLATFORM_OSX
 		{ VK_MVK_MACOS_SURFACE_EXTENSION_NAME,      1, false, false, true,                                                          Layer::Count },
@@ -2445,6 +2449,54 @@ VK_IMPORT_DEVICE
 		}
 
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+#if defined (BX_PLATFORM_WINDOWS)
+		void getDeviceLuid(uint8_t* luid) override
+		{
+			VkPhysicalDeviceIDProperties idProps{};
+			idProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+
+			VkPhysicalDeviceProperties2 props2{};
+			props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+			props2.pNext = &idProps;
+
+			vkGetPhysicalDeviceProperties2(m_physicalDevice, &props2);
+
+			if (idProps.deviceLUIDValid)
+			{
+				memcpy(luid, idProps.deviceLUID, VK_LUID_SIZE);
+			}
+			else
+			{
+				memcpy(luid, 0, VK_LUID_SIZE);
+			}
+		}
+#endif //Platform
+		void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function) override
+		{
+			if (s_extension[Extension::EXT_pci_bus_info].m_supported)
+			{
+				VkPhysicalDevicePCIBusInfoPropertiesEXT pciInfo{};
+				pciInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PCI_BUS_INFO_PROPERTIES_EXT;
+
+				VkPhysicalDeviceProperties2 props2{};
+				props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+				props2.pNext = &pciInfo;
+
+				vkGetPhysicalDeviceProperties2(m_physicalDevice, &props2);
+				*domain = pciInfo.pciDomain;
+				*bus = pciInfo.pciBus;
+				*device = pciInfo.pciDevice;
+				*function = pciInfo.pciFunction;
+			}
+			else
+			{
+				*domain		= 0;
+				*bus		= 0;
+				*device		= 0;
+				*function	= 0;
+			}
+		}
+
 		void createExportableSyncObject(ExportableSyncObjectHandle _exportable) override
 		{
 			VkSemaphoreTypeCreateInfo stci;
@@ -2479,7 +2531,7 @@ VK_IMPORT_DEVICE
 			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.ConsumerSignals));
 		}
 
-		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t _frameIdx) override
+		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t _frameIdx) override
 		{
 			const FrameBufferVK& frameBuffer = isValid(_handle)
 				? m_frameBuffers[_handle.idx]
@@ -2769,8 +2821,44 @@ VK_IMPORT_DEVICE
 			vkDestroy(stagingBuffer);
 			recycleMemory(stagingMemory);
 		}
+				
+		void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath) override
+		{
+			const TextureVK& texture = m_textures[_handle.idx];
 
 
+			auto callback = [](void* _src, uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _userData)
+				{
+					const char* filePath = (const char*)_userData;
+					g_callback->screenShot(
+						filePath
+						, _width
+						, _height
+						, _pitch
+						, _src
+						, _height * _pitch
+						, false
+					);
+				};
+
+			if (texture.m_format != VK_FORMAT_B8G8R8A8_UNORM && texture.m_format != VK_FORMAT_R8G8B8A8_UNORM)
+			{
+				BX_TRACE("Request screenshot vk - wrong image format found");
+				return;
+			}
+
+			const uint8_t bpp = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(TextureFormat::BGRA8));
+			const uint32_t size = texture.m_width * texture.m_height * bpp / 8;
+
+			DeviceMemoryAllocationVK stagingMemory;
+			VkBuffer stagingBuffer;
+			VK_CHECK(createReadbackBuffer(size, &stagingBuffer, &stagingMemory));
+
+			readImage(texture, stagingBuffer, stagingMemory, callback, _filePath);
+
+			vkDestroy(stagingBuffer);
+			recycleMemory(stagingMemory);
+		}
 
 		void updateViewName(ViewId _id, const char* _name) override
 		{
@@ -4373,10 +4461,12 @@ VK_IMPORT_DEVICE
 			return false;
 		}
 
-		bool readSwapChainToImage(const SwapChainVK& _swapChain, const TextureVK& _image, ExportableSyncObjectHandle _exportableSync, uint8_t _frameIdx)
+		bool readSwapChainToImage(const SwapChainVK& _swapChain, const TextureVK& _image, ExportableSyncObjectHandle _exportableSync, uint64_t _frameIdx)
 		{
 			if (isSwapChainReadable(_swapChain))
 			{
+				BX_TRACE("Copy image with keyedMutexBase %d", _frameIdx);
+
 				// source for the copy is the last rendered swapchain image
 				const VkImage image = _swapChain.m_backBufferColorImage[_swapChain.m_backBufferColorIdx];
 				const VkImageLayout layout = _swapChain.m_backBufferColorImageLayout[_swapChain.m_backBufferColorIdx];
@@ -4390,7 +4480,7 @@ VK_IMPORT_DEVICE
 				// stall for commandbuffer to finish
 				kick(true);
 
-				readback.copyImageToImage(m_commandBuffer, _image.m_textureImage, layout, VK_IMAGE_ASPECT_COLOR_BIT);
+				readback.copyImageToImage(m_commandBuffer, layout, _image.m_textureImage, _image.m_currentImageLayout, VK_IMAGE_ASPECT_COLOR_BIT);
 
 				const ExportableSyncObjectVk& sync = m_exportableSyncObjects[_exportableSync.idx];
 				//m_cmd.addWaitSemaphore(sync.KeyedMutexSemaphoreWait);
@@ -4404,6 +4494,63 @@ VK_IMPORT_DEVICE
 			}
 
 			return false;
+		}
+
+		bool readImage(const TextureVK _image, VkBuffer _buffer, DeviceMemoryAllocationVK _memory, SwapChainReadFunc _func, const void* _userData = NULL)
+		{
+			VkImage image = _image.m_textureImage;
+			VkImageLayout layout = _image.m_currentImageLayout;
+			uint32_t width = _image.m_width;
+			uint32_t height = _image.m_height;
+			TextureFormat::Enum format;
+			if (_image.m_format == VK_FORMAT_B8G8R8A8_UNORM)
+				format = TextureFormat::BGRA8;
+			else if (_image.m_format == VK_FORMAT_R8G8B8A8_UNORM)
+				format = TextureFormat::RGBA8;
+			else
+				format = TextureFormat::Unknown;
+
+			/*ReadbackVK readback;
+			readback.create(image, width, height, _image.m_textureFormat);*/
+			const uint32_t pitch = _image.m_readback.pitch();
+
+			_image.m_readback.copyImageToBuffer(m_commandBuffer, _buffer, layout, VK_IMAGE_ASPECT_COLOR_BIT);
+
+			// stall for commandbuffer to finish
+			kick(true);
+
+			uint8_t* src;
+			VK_CHECK(vkMapMemory(m_device, _memory.mem, _memory.offset, _memory.size, 0, (void**)&src));
+
+			if (format == TextureFormat::RGBA8)
+			{
+				bimg::imageSwizzleBgra8(src, pitch, width, height, src, pitch);
+				_func(src, width, height, pitch, _userData);
+			}
+			else if (format == TextureFormat::BGRA8)
+			{
+				_func(src, width, height, pitch, _userData);
+			}
+			else
+			{
+				const uint8_t dstBpp = bimg::getBitsPerPixel(bimg::TextureFormat::BGRA8);
+				const uint32_t dstPitch = width * dstBpp / 8;
+				const uint32_t dstSize = height * dstPitch;
+
+				void* dst = bx::alloc(g_allocator, dstSize);
+
+				bimg::imageConvert(g_allocator, dst, bimg::TextureFormat::BGRA8, src, bimg::TextureFormat::Enum(format), width, height, 1);
+
+				_func(dst, width, height, dstPitch, _userData);
+
+				bx::free(g_allocator, dst);
+			}
+
+			vkUnmapMemory(m_device, _memory.mem);
+
+			//readback.destroy();
+
+			return true;
 		}
 
 		void capture()
@@ -4628,7 +4775,7 @@ VK_IMPORT_DEVICE
 			m_cmd.finish(_finishAll);
 		}
 
-		void kick2(bool _finishAll = false, uint8_t frameIdx = 0)
+		void kick2(bool _finishAll = false, uint64_t frameIdx = 0)
 		{
 			m_cmd.kick2(_finishAll, frameIdx);
 			VK_CHECK(m_cmd.alloc(&m_commandBuffer));
@@ -4741,7 +4888,7 @@ VK_IMPORT_DEVICE
 			VkExportMemoryAllocateInfo exportInfo{};
 			exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
 #if defined (BX_PLATFORM_WINDOWS)
-			exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT | VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+			exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT /*| VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT*/;
 #	elif defined (BX_PLATFORM_LINUX)
 			exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 #	endif
@@ -4752,6 +4899,7 @@ VK_IMPORT_DEVICE
 			importInfo.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
 			importInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
 			importInfo.handle = _importedHandle ? (HANDLE)_importedHandle : NULL;
+			//BX_TRACE("Imported Handle: %d", (int)(_importedHandle != nullptr));
 #elif defined (BX_PLATFORM_LINUX)
 			VkImportMemoryFdInfoKHR importInfo{};
 			importInfo.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
@@ -4767,7 +4915,10 @@ VK_IMPORT_DEVICE
 					exportInfo.pNext = &importInfo;
 			}
 			else if (_importedHandle)
+			{
 				dedicatedInfo.pNext = &importInfo;
+				//BX_TRACE("Imported Handle: %d", (int)(_importedHandle != nullptr));
+			}
 			memAlloc.pNext = &dedicatedInfo;
 
 			VkResult result = VK_ERROR_UNKNOWN;
@@ -6301,7 +6452,7 @@ VK_DESTROY
 			);
 	}
 
-	void ReadbackVK::copyImageToImage(VkCommandBuffer _commandBuffer, VkImage _image, VkImageLayout _layout, VkImageAspectFlags _aspect, uint8_t _mip) const
+	void ReadbackVK::copyImageToImage(VkCommandBuffer _commandBuffer, VkImageLayout _srcLayout, VkImage _dstImage, VkImageLayout _dstLayout, VkImageAspectFlags _aspect, uint8_t _mip) const
 	{
 		BGFX_PROFILER_SCOPE("ReadbackVK::copyImageToImage", kColorFrame);
 		uint32_t mipWidth = bx::uint32_max(1, m_width >> _mip);
@@ -6311,7 +6462,7 @@ VK_DESTROY
 			_commandBuffer
 			, m_image
 			, _aspect
-			, _layout
+			, _srcLayout
 			, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
 			, _mip
 			, 1
@@ -6321,9 +6472,9 @@ VK_DESTROY
 
 		setImageMemoryBarrier(
 			_commandBuffer
-			, _image
+			, _dstImage
 			, _aspect
-			, _layout
+			, _dstLayout
 			, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 			, _mip
 			, 1
@@ -6348,7 +6499,7 @@ VK_DESTROY
 			_commandBuffer
 			, m_image
 			, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
-			, _image
+			, _dstImage
 			, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 			, 1
 			, &ic
@@ -6359,7 +6510,7 @@ VK_DESTROY
 			, m_image
 			, _aspect
 			, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
-			, _layout
+			, _srcLayout
 			, _mip
 			, 1
 			, 0
@@ -6368,10 +6519,10 @@ VK_DESTROY
 
 		setImageMemoryBarrier(
 			_commandBuffer
-			, _image
+			, _dstImage
 			, _aspect
 			, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-			, _layout
+			, _dstLayout
 			, _mip
 			, 1
 			, 0
@@ -6469,7 +6620,7 @@ VK_DESTROY
 		emic.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
 		emic.pNext = NULL;
 #if defined (BX_PLATFORM_WINDOWS)
-		emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT | VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+		emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT/* | VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT*/;
 #elif defined (BX_PLATFORM_LINUX)
 		emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_FD_TEXTURE_BIT;
 #endif // BX_PLATFORM_WINDOWS
@@ -6672,9 +6823,11 @@ VK_DESTROY
 			const uint16_t numSides = ti.numLayers * (imageContainer.m_cubeMap ? 6 : 1);
 			const uint32_t numSrd = numSides * ti.numMips;
 
+#if defined (VK_EXPORTABLE_IMAGE)
 			m_exportableMemory = imageContainer.m_exportableMemory;
 			m_importedMemoryHandle = imageContainer.m_importedMemoryHandle;
-
+			BX_TRACE("Creating vkTexture with exportable mem: %d and/or importedHandle: 0x%X", (int)m_exportableMemory, reinterpret_cast<uintptr_t>(m_importedMemoryHandle));
+#endif
 			uint32_t kk = 0;
 
 			const bool compressed = bimg::isCompressed(bimg::TextureFormat::Enum(m_textureFormat) );
@@ -8862,7 +9015,7 @@ VK_DESTROY
 		m_externalMemory = mem;
 	}
 
-	void CommandQueueVK::kick2(bool _wait /*= false*/, uint8_t frameIdx /*= 0*/)
+	void CommandQueueVK::kick2(bool _wait /*= false*/, uint64_t frameIdx /*= 0*/)
 	{
 		BGFX_PROFILER_SCOPE("CommandQueueVK::kick2", kColorDraw);
 		if (VK_NULL_HANDLE != m_activeCommandBuffer)
@@ -8885,13 +9038,14 @@ VK_DESTROY
 			VkCommandBufferSubmitInfoKHR cmdBufInfo{};
 			cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO_KHR;
 			cmdBufInfo.pNext = nullptr;
-			cmdBufInfo.deviceMask = 0;
+			cmdBufInfo.deviceMask = 0x1;
 			cmdBufInfo.commandBuffer = m_activeCommandBuffer;
 
 
-			uint64_t acquKey = frameIdx;
-			uint64_t relKey = (frameIdx + 1) % 2;
-			uint32_t timeOut = 0;
+			uint64_t acquKey = 0/*frameIdx*/;
+			uint64_t relKey = 1/*frameIdx + 1*/;
+			//uint32_t timeOut = UINT32_MAX;
+			uint32_t timeOut = 1000;
 			VkWin32KeyedMutexAcquireReleaseInfoKHR kmInfo{};
 			kmInfo.sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
 			kmInfo.pNext = nullptr;
@@ -8921,7 +9075,7 @@ VK_DESTROY
 			signalSemaInfo.stageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 			signalSemaInfo.value = (frameIdx + 1)%2;*/
 
-			VkSubmitInfo2KHR si2{};
+			VkSubmitInfo2 si2{};
 			si2.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2_KHR;
 			si2.pNext = &kmInfo;
 			si2.commandBufferInfoCount = 1;
@@ -8942,6 +9096,7 @@ VK_DESTROY
 			}
 
 			m_activeCommandBuffer = VK_NULL_HANDLE;
+			m_externalMemory = VK_NULL_HANDLE;
 
 			m_currentFrameInFlight = (m_currentFrameInFlight + 1) % m_numFramesInFlight;
 			m_submitted++;

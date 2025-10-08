@@ -190,11 +190,21 @@ namespace bgfx { namespace noop
 		}
 
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+#if defined (BX_PLATFORM_WINDOWS)
+		void getDeviceLuid(uint8_t* luid) override
+		{
+		}
+
+#endif //Platform
+		void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function) override
+		{
+		}
+
 		void createExportableSyncObject(ExportableSyncObjectHandle _exportable) override
 		{
 		}
 
-		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t _frameIdx) override
+		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t _frameIdx) override
 		{
 		}
 
@@ -241,6 +251,10 @@ namespace bgfx { namespace noop
 		}
 
 		void requestScreenShot(FrameBufferHandle /*_handle*/, const char* /*_filePath*/) override
+		{
+		}
+
+		void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath) override
 		{
 		}
 

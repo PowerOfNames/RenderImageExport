@@ -2026,6 +2026,13 @@ namespace bgfx
 	///
 	const char* getRendererName(RendererType::Enum _type);
 
+
+	void getDeviceLuid(uint8_t* luid);
+
+
+	void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function);
+
+
 	/// Initialize the bgfx library.
 	///
 	/// @param[in] _init Initialization parameters. See: `bgfx::Init` for more info.
@@ -2979,7 +2986,7 @@ namespace bgfx
 	/// 
 	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
 	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
-	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t frameIdx);
+	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t frameIdx);
 
 
 
@@ -4360,6 +4367,23 @@ namespace bgfx
 	///
 	void requestScreenShot(
 		  FrameBufferHandle _handle
+		, const char* _filePath
+		);
+
+	/// Request screen shot of a particular image. Will fail silently if image is not capturable.
+	///
+	/// @param[in] _handle Texture handle. If handle is `BGFX_INVALID_HANDLE` request will be
+	///   made for main window back buffer.
+	/// @param[in] _filePath Will be passed to `bgfx::CallbackI::screenShot` callback.
+	///
+	/// @remarks
+	///   `bgfx::CallbackI::screenShot` must be implemented.
+	///
+	/// @attention Frame buffer handle must be created with OS' target native window handle.
+	/// @attention C99's equivalent binding is `bgfx_request_screen_shot`.
+	///
+	void requestScreenShotForTexture(
+		 TextureHandle _handle
 		, const char* _filePath
 		);
 

@@ -106,6 +106,7 @@
 			VK_IMPORT_INSTANCE_FUNC(true,  vkDestroySurfaceKHR);                       \
 			/* VK_KHR_get_physical_device_properties2 */                               \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceFeatures2KHR);           \
+			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceProperties2);           \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceMemoryProperties2KHR);   \
 			VK_IMPORT_INSTANCE_FUNC(true, vkGetPhysicalDeviceImageFormatProperties2);  \
 																					   \
@@ -689,7 +690,7 @@ VK_DESTROY_FUNC(DescriptorSet);
 		void destroy();
 		uint32_t pitch(uint8_t _mip = 0) const;
 		void copyImageToBuffer(VkCommandBuffer _commandBuffer, VkBuffer _buffer, VkImageLayout _layout, VkImageAspectFlags _aspect, uint8_t _mip = 0) const;
-		void copyImageToImage(VkCommandBuffer _commandBuffer, VkImage _image, VkImageLayout _layout, VkImageAspectFlags _aspect, uint8_t _mip = 0) const;
+		void copyImageToImage(VkCommandBuffer _commandBuffer, VkImageLayout _srcLayout, VkImage _dstImage, VkImageLayout _dstLayout, VkImageAspectFlags _aspect, uint8_t _mip = 0) const;
 		void readback(VkDeviceMemory _memory, VkDeviceSize _offset, void* _data, uint8_t _mip = 0) const;
 
 		VkImage  m_image;
@@ -914,7 +915,7 @@ VK_DESTROY_FUNC(DescriptorSet);
 #if defined (VK_EXPORTABLE_IMAGE)
 		//This kich method uses the newer submitInfo2 info and consumes keyed mutex semaphores
 		void setExternalMemory(VkDeviceMemory mem);
-		void kick2(bool _wait = false, uint8_t = 0);
+		void kick2(bool _wait = false, uint64_t frameIdx = 0);
 #endif
 		void finish(bool _finishAll = false);
 

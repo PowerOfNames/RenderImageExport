@@ -2484,6 +2484,15 @@ namespace bgfx
 						m_renderCtx->requestScreenShot(screenShot.handle, screenShot.filePath.getCPtr() );
 					}
 				}
+
+				{
+					BGFX_PROFILER_SCOPE("bgfx/ScreenshotForTextures", 0xff2040ff);
+					for (uint8_t ii = 0, num = m_render->m_numScreenShotTextures; ii < num; ++ii)
+					{
+						const ScreenShotTexture& screenShot = m_render->m_screenShotTexture[ii];
+						m_renderCtx->requestScreenShotForTexture(screenShot.handle, screenShot.filePath.getCPtr());
+					}
+				}
 			}
 
 			{
@@ -3386,6 +3395,36 @@ namespace bgfx
 				break;
 
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+			case CommandBuffer::GetDeviceLuid:
+				{
+					BGFX_PROFILER_SCOPE("GetDeviceLuid", 0xff2040ff);
+
+					uint8_t* luid;
+					_cmdbuf.read(luid);
+					m_renderCtx->getDeviceLuid(luid);
+				}
+				break;
+
+			case CommandBuffer::GetDevicePciInfo:
+				{
+					BGFX_PROFILER_SCOPE("GetDevicePciInfo", 0xff2040ff);
+
+					uint32_t* domain;
+					_cmdbuf.read(domain);
+
+					uint32_t* bus;
+					_cmdbuf.read(bus);
+
+					uint32_t* device;
+					_cmdbuf.read(device);
+
+					uint32_t* function;
+					_cmdbuf.read(function);
+
+					m_renderCtx->getDevicePciInfo(domain, bus, device, function);
+				}
+				break;
+
 			case CommandBuffer::CreateExportableSyncObject:
 				{
 					BGFX_PROFILER_SCOPE("CreateExportableSyncObject", 0xff2040ff);
@@ -3410,7 +3449,7 @@ namespace bgfx
 					TextureHandle exportableImage;
 					_cmdbuf.read(exportableImage);
 
-					uint8_t frameIdx;
+					uint64_t frameIdx;
 					_cmdbuf.read(frameIdx);
 
 					m_renderCtx->updateExportableImage(handle, exportableSync, exportableImage, frameIdx);
@@ -5031,6 +5070,16 @@ namespace bgfx
 	}
 
 #if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
+	void getDeviceLuid(uint8_t* luid)
+	{
+		return s_ctx->getDeviceLuid(luid);
+	}
+
+	void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function)
+	{
+		return s_ctx->getDevicePciInfo(domain, bus, device, function);
+	}
+
 	TextureHandle createExportableTexture2D(uint16_t _width, uint16_t _height, TextureFormat::Enum _format, uint64_t _flags)
 	{
 		bx::ErrorAssert err;
@@ -5106,7 +5155,7 @@ namespace bgfx
 		return s_ctx->createExportableSyncObject();
 	}
 
-	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint8_t _frameIdx)
+	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t _frameIdx)
 	{
 		s_ctx->updateExportableImage(_handle, _exportableSync, _exportableImage, _frameIdx);
 	}
@@ -5756,7 +5805,13 @@ namespace bgfx
 	{
 		BGFX_CHECK_API_THREAD();
 		s_ctx->requestScreenShot(_handle, _filePath);
-	}	
+	}
+
+	void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath)
+	{
+		BGFX_CHECK_API_THREAD();
+		s_ctx->requestScreenShotForTexture(_handle, _filePath);
+	}
 
 #undef BGFX_CHECK_ENCODER0
 
