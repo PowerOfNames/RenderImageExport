@@ -562,7 +562,6 @@ namespace bgfx
 		uint8_t  m_numMips;
 		bool     m_cubeMap;
 		bool m_exportableMemory;
-		void* m_importedMemoryHandle;
 		const Memory* m_mem;
 	};
 
@@ -3145,7 +3144,7 @@ namespace bgfx
 #endif //Platform
 		virtual void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function);
 		virtual void createExportableSyncObject(ExportableSyncObjectHandle _exportable) = 0;
-		virtual void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t _frameIdx);
+		virtual void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
 		virtual void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* _memSize);
 		virtual void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native);
 #endif
@@ -4656,9 +4655,9 @@ namespace bgfx
 			cmdBuf.write(exportableSyncHandle);
 
 			return exportableSyncHandle;
-		}
+		}		
 
-		BGFX_API_FUNC(void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t _frameIdx))
+		BGFX_API_FUNC(void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage))
 		{
 			BGFX_MUTEX_SCOPE(m_resourceApiLock);
 
@@ -4666,7 +4665,6 @@ namespace bgfx
 			cmdBuf.write(_handle);
 			cmdBuf.write(_exportableSync);
 			cmdBuf.write(_exportableImage);
-			cmdBuf.write(_frameIdx);
 		}
 
 		BGFX_API_FUNC(void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* _memSize))

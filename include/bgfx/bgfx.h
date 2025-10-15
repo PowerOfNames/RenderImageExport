@@ -2938,31 +2938,6 @@ namespace bgfx
 		, uint64_t _flags = BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE
 		);
 
-	/// Create texture with size based on back-buffer ratio. Texture will maintain ratio
-	/// if back buffer resolution changes. Texture will be created with external memory accessibility.
-	/// Needs to be synced with externally accessible semaphores.
-	///
-	/// @param[in] _width Indicates width of the texture.
-	/// @param[in] _height Indicated the height of the texture.
-	/// @param[in] _externalHandle IS the memory handle of the external memory handle of a texture.
-	/// @param[in] _format Texture format. See: `TextureFormat::Enum`.
-	/// @param[in] _flags Texture creation (see `BGFX_TEXTURE_*`.), and sampler (see `BGFX_SAMPLER_*`)
-	///   flags. Default texture sampling mode is linear, and wrap mode is repeat.
-	///   - `BGFX_SAMPLER_[U/V/W]_[MIRROR/CLAMP]` - Mirror or clamp to edge wrap
-	///     mode.
-	///   - `BGFX_SAMPLER_[MIN/MAG/MIP]_[POINT/ANISOTROPIC]` - Point or anisotropic
-	///     sampling.
-	/// 
-	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
-	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
-	TextureHandle createImportedTexture2D(
-		  uint16_t _width
-		, uint16_t _height
-		, TextureFormat::Enum _format
-		, void* _externalHandle
-		, uint64_t _flags = BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE
-	);
-
 	/// Creates an external syncronization object, if BGFX_CONFIG_EXTERNAL_IMAGE is set.
 	/// -> Returns Invalid Handle if not using Vulkan OR BGFX_CONFIG_EXTERNAL_IMAGE is not set 
 	ExportableSyncObjectHandle createExportableSyncObject();
@@ -2986,7 +2961,7 @@ namespace bgfx
 	/// 
 	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
 	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
-	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t frameIdx);
+	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
 
 
 
@@ -3297,9 +3272,10 @@ namespace bgfx
 	///
 	/// @returns Returns false if _exportable is not an exportable texture created with createExportableTexture(...)
 	///
-	/// @attention C99's equivalent binding is `bgfx_get_texture`.
+	/// @attention C99's not implemented`.
 	///
 	bool getExportableMemoryHandle(TextureHandle _exportable, uint32_t* _memoryHandle);
+
 
 	/// Destroy frame buffer.
 	///

@@ -3449,10 +3449,7 @@ namespace bgfx
 					TextureHandle exportableImage;
 					_cmdbuf.read(exportableImage);
 
-					uint64_t frameIdx;
-					_cmdbuf.read(frameIdx);
-
-					m_renderCtx->updateExportableImage(handle, exportableSync, exportableImage, frameIdx);
+					m_renderCtx->updateExportableImage(handle, exportableSync, exportableImage);
 				}
 				break;
 
@@ -5004,7 +5001,6 @@ namespace bgfx
 		tc.m_cubeMap   = false;
 		tc.m_mem       = _mem;
 		tc.m_exportableMemory = false;
-		tc.m_importedMemoryHandle = nullptr;
 		bx::write(&writer, tc, bx::ErrorAssert{});
 
 		return s_ctx->createTexture(mem, _flags, 0, NULL, _ratio, NULL != _mem);
@@ -5063,7 +5059,6 @@ namespace bgfx
 		tc.m_cubeMap   = false;
 		tc.m_mem       = _mem;
 		tc.m_exportableMemory = false;
-		tc.m_importedMemoryHandle = nullptr;
 		bx::write(&writer, tc, bx::ErrorAssert{});
 
 		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, NULL != _mem);
@@ -5108,42 +5103,6 @@ namespace bgfx
 		tc.m_format = _format;
 		tc.m_cubeMap = false;
 		tc.m_exportableMemory = true;
-		tc.m_importedMemoryHandle = nullptr;
-		tc.m_mem = NULL;
-		bx::write(&writer, tc, bx::ErrorAssert{});
-
-		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, false);
-	}
-
-	TextureHandle createImportedTexture2D(uint16_t _width, uint16_t _height, TextureFormat::Enum _format, void* _externalHandle, uint64_t _flags)
-	{
-		bx::ErrorAssert err;
-		isTextureValid(_width, _height, 0, false, 1, _format, _flags, &err);
-
-		if (!err.isOk())
-		{
-			return BGFX_INVALID_HANDLE;
-		}
-
-		const uint8_t numMips = calcNumMips(false, _width, _height);
-
-		uint32_t size = sizeof(uint32_t) + sizeof(TextureCreate);
-		const Memory* mem = alloc(size);
-
-		bx::StaticMemoryBlockWriter writer(mem->data, mem->size);
-		uint32_t magic = BGFX_CHUNK_MAGIC_TEX;
-		bx::write(&writer, magic, bx::ErrorAssert{});
-
-		TextureCreate tc;
-		tc.m_width = _width;
-		tc.m_height = _height;
-		tc.m_depth = 0;
-		tc.m_numLayers = 1;
-		tc.m_numMips = numMips;
-		tc.m_format = _format;
-		tc.m_cubeMap = false;
-		tc.m_exportableMemory = false;
-		tc.m_importedMemoryHandle = _externalHandle;
 		tc.m_mem = NULL;
 		bx::write(&writer, tc, bx::ErrorAssert{});
 
@@ -5155,9 +5114,9 @@ namespace bgfx
 		return s_ctx->createExportableSyncObject();
 	}
 
-	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t _frameIdx)
+	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage)
 	{
-		s_ctx->updateExportableImage(_handle, _exportableSync, _exportableImage, _frameIdx);
+		s_ctx->updateExportableImage(_handle, _exportableSync, _exportableImage);
 	}
 
 	void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* memSize)

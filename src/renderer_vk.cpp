@@ -2525,13 +2525,11 @@ VK_IMPORT_DEVICE
 			sci.flags = 0;
 
 			auto& exportable = m_exportableSyncObjects[_exportable.idx];
-			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.KeyedMutexSemaphoreWait));
-			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.KeyedMutexSemaphoreSignal));
 			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.ProducerSignals));
 			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.ConsumerSignals));
 		}
 
-		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage, uint64_t _frameIdx) override
+		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override
 		{
 			const FrameBufferVK& frameBuffer = isValid(_handle)
 				? m_frameBuffers[_handle.idx]
@@ -2550,7 +2548,7 @@ VK_IMPORT_DEVICE
 
 			const TextureVK& texture = m_textures[_exportableImage.idx];
 
-			readSwapChainToImage(swapChain, texture, _exportableSync, _frameIdx);
+			readSwapChainToImage(swapChain, texture, _exportableSync);
 		}
 
 
@@ -2562,7 +2560,7 @@ VK_IMPORT_DEVICE
 			VkPhysicalDeviceExternalImageFormatInfo edeci{};
 			edeci.pNext = NULL;
 			edeci.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO;
-			edeci.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
+			edeci.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 
 			VkPhysicalDeviceImageFormatInfo2 pdici2{};
 			pdici2.pNext = &edeci;
@@ -2629,7 +2627,7 @@ VK_IMPORT_DEVICE
 			VkMemoryGetWin32HandleInfoKHR win32i;
 			win32i.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
 			win32i.pNext = NULL;
-			win32i.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT/* | VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT*/;
+			win32i.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 			win32i.memory = memory;
 
 			VK_CHECK(vkGetMemoryWin32HandleKHR(m_device, &win32i, &h));
@@ -4461,12 +4459,10 @@ VK_IMPORT_DEVICE
 			return false;
 		}
 
-		bool readSwapChainToImage(const SwapChainVK& _swapChain, const TextureVK& _image, ExportableSyncObjectHandle _exportableSync, uint64_t _frameIdx)
+		bool readSwapChainToImage(const SwapChainVK& _swapChain, const TextureVK& _image, ExportableSyncObjectHandle _exportableSync)
 		{
 			if (isSwapChainReadable(_swapChain))
 			{
-				BX_TRACE("Copy image with keyedMutexBase %d", _frameIdx);
-
 				// source for the copy is the last rendered swapchain image
 				const VkImage image = _swapChain.m_backBufferColorImage[_swapChain.m_backBufferColorIdx];
 				const VkImageLayout layout = _swapChain.m_backBufferColorImageLayout[_swapChain.m_backBufferColorIdx];
@@ -4483,10 +4479,9 @@ VK_IMPORT_DEVICE
 				readback.copyImageToImage(m_commandBuffer, layout, _image.m_textureImage, _image.m_currentImageLayout, VK_IMAGE_ASPECT_COLOR_BIT);
 
 				const ExportableSyncObjectVk& sync = m_exportableSyncObjects[_exportableSync.idx];
-				//m_cmd.addWaitSemaphore(sync.KeyedMutexSemaphoreWait);
-				//m_cmd.addSignalSemaphore(sync.KeyedMutexSemaphoreSignal);
-				m_cmd.setExternalMemory(_image.m_textureDeviceMem.mem);
-				kick2(true, _frameIdx);
+				m_cmd.addWaitSemaphore(sync.ConsumerSignals);
+				m_cmd.addSignalSemaphore(sync.ProducerSignals);
+				kick(true);
 
 				readback.destroy();
 
@@ -4775,13 +4770,6 @@ VK_IMPORT_DEVICE
 			m_cmd.finish(_finishAll);
 		}
 
-		void kick2(bool _finishAll = false, uint64_t frameIdx = 0)
-		{
-			m_cmd.kick2(_finishAll, frameIdx);
-			VK_CHECK(m_cmd.alloc(&m_commandBuffer));
-			m_cmd.finish(_finishAll);
-		}
-
 		int32_t selectMemoryType(uint32_t _memoryTypeBits, uint32_t _propertyFlags, int32_t _startIndex = 0) const
 		{
 			for (int32_t ii = _startIndex, num = m_memoryProperties.memoryTypeCount; ii < num; ++ii)
@@ -4851,7 +4839,7 @@ VK_IMPORT_DEVICE
 		}
 
 #if defined (VK_EXPORTABLE_IMAGE)
-		VkResult allocateExternalImageMemory(const VkMemoryRequirements* requirements, VkMemoryPropertyFlags propertyFlags, DeviceMemoryAllocationVK* memory, VkImage image, bool _forcePrivateDeviceAllocation, bool _exportableAllocation, void* _importedHandle)
+		VkResult allocateExternalImageMemory(const VkMemoryRequirements* requirements, VkMemoryPropertyFlags propertyFlags, DeviceMemoryAllocationVK* memory, VkImage image, bool _forcePrivateDeviceAllocation, bool _exportableAllocation)
 		{
 			BGFX_PROFILER_SCOPE("RendererContextVK::allocateMemory", kColorResource);
 
@@ -4888,37 +4876,15 @@ VK_IMPORT_DEVICE
 			VkExportMemoryAllocateInfo exportInfo{};
 			exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
 #if defined (BX_PLATFORM_WINDOWS)
-			exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT /*| VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT*/;
+			exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 #	elif defined (BX_PLATFORM_LINUX)
 			exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 #	endif
 
-
-#if defined (BX_PLATFORM_WINDOWS)
-			VkImportMemoryWin32HandleInfoKHR importInfo{};
-			importInfo.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
-			importInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
-			importInfo.handle = _importedHandle ? (HANDLE)_importedHandle : NULL;
-			//BX_TRACE("Imported Handle: %d", (int)(_importedHandle != nullptr));
-#elif defined (BX_PLATFORM_LINUX)
-			VkImportMemoryFdInfoKHR importInfo{};
-			importInfo.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
-			importInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
-			importInfo.fd = _importedHandle ? *((int*)_importedHandle) : NULL;
-#endif
-
 			//chain together import and export (whatever is active) into dedicatedInfo and then dedicated into memoryAlloc
-			if (_exportableAllocation)
-			{
+			if (_exportableAllocation)			
 				dedicatedInfo.pNext = &exportInfo;
-				if (_importedHandle)
-					exportInfo.pNext = &importInfo;
-			}
-			else if (_importedHandle)
-			{
-				dedicatedInfo.pNext = &importInfo;
-				//BX_TRACE("Imported Handle: %d", (int)(_importedHandle != nullptr));
-			}
+			
 			memAlloc.pNext = &dedicatedInfo;
 
 			VkResult result = VK_ERROR_UNKNOWN;
@@ -6579,7 +6545,6 @@ VK_DESTROY
 
 #if defined (VK_EXPORTABLE_IMAGE)
 		m_exportableMemory = false;
-		m_importedMemoryHandle = nullptr;
 #endif
 
 		VkResult result = createImages(_commandBuffer);
@@ -6620,11 +6585,11 @@ VK_DESTROY
 		emic.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
 		emic.pNext = NULL;
 #if defined (BX_PLATFORM_WINDOWS)
-		emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT/* | VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT*/;
+		emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
 #elif defined (BX_PLATFORM_LINUX)
 		emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_FD_TEXTURE_BIT;
 #endif // BX_PLATFORM_WINDOWS
-		ici.pNext = m_exportableMemory || m_importedMemoryHandle ? (const void*)&emic : NULL;
+		ici.pNext = m_exportableMemory ? (const void*)&emic : NULL;
 #endif // VK_EXPORTABLE_IMAGE
 
 		ici.flags = 0
@@ -6636,6 +6601,9 @@ VK_DESTROY
 				? VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT_KHR
 				: 0
 				)
+#if defined(VK_EXPORTABLE_IMAGE)
+			| (m_exportableMemory ? VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT : 0)
+#endif
 			;
 		ici.pQueueFamilyIndices   = NULL;
 		ici.queueFamilyIndexCount = 0;
@@ -6652,6 +6620,9 @@ VK_DESTROY
 				: 0
 				)
 			| (m_flags & BGFX_TEXTURE_COMPUTE_WRITE ? VK_IMAGE_USAGE_STORAGE_BIT : 0)
+#if defined(VK_EXPORTABLE_IMAGE)
+			| (m_exportableMemory ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0)
+#endif
 			;
 		ici.format        = m_format;
 		ici.samples       = m_sampler.Sample;
@@ -6677,8 +6648,8 @@ VK_DESTROY
 		vkGetImageMemoryRequirements(device, m_textureImage, &imageMemReq);
 
 #if defined(VK_EXPORTABLE_IMAGE)
-		if(m_exportableMemory || m_importedMemoryHandle)
-			result = s_renderVK->allocateExternalImageMemory(&imageMemReq, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_textureDeviceMem, m_textureImage, false, m_exportableMemory, m_importedMemoryHandle);
+		if(m_exportableMemory)
+			result = s_renderVK->allocateExternalImageMemory(&imageMemReq, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_textureDeviceMem, m_textureImage, false, m_exportableMemory);
 		else
 			result = s_renderVK->allocateMemory(&imageMemReq, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_textureDeviceMem, false);
 #else
@@ -6728,8 +6699,8 @@ VK_DESTROY
 			vkGetImageMemoryRequirements(device, m_singleMsaaImage, &imageMemReq_resolve);
 
 #if defined(VK_EXPORTABLE_IMAGE)
-			if (m_exportableMemory || m_importedMemoryHandle)
-				result = s_renderVK->allocateExternalImageMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, m_textureImage, false, m_exportableMemory, m_importedMemoryHandle);
+			if (m_exportableMemory)
+				result = s_renderVK->allocateExternalImageMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, m_textureImage, false, m_exportableMemory);
 			else
 				result = s_renderVK->allocateMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, false);
 #else
@@ -6825,8 +6796,7 @@ VK_DESTROY
 
 #if defined (VK_EXPORTABLE_IMAGE)
 			m_exportableMemory = imageContainer.m_exportableMemory;
-			m_importedMemoryHandle = imageContainer.m_importedMemoryHandle;
-			BX_TRACE("Creating vkTexture with exportable mem: %d and/or importedHandle: 0x%X", (int)m_exportableMemory, reinterpret_cast<uintptr_t>(m_importedMemoryHandle));
+			BX_TRACE("Creating vkTexture with exportable mem: %d", (int)m_exportableMemory);
 #endif
 			uint32_t kk = 0;
 
@@ -9008,101 +8978,6 @@ VK_DESTROY
 			m_submitted++;
 		}
 	}
-
-#if defined (VK_EXPORTABLE_IMAGE)
-	void CommandQueueVK::setExternalMemory(VkDeviceMemory mem)
-	{
-		m_externalMemory = mem;
-	}
-
-	void CommandQueueVK::kick2(bool _wait /*= false*/, uint64_t frameIdx /*= 0*/)
-	{
-		BGFX_PROFILER_SCOPE("CommandQueueVK::kick2", kColorDraw);
-		if (VK_NULL_HANDLE != m_activeCommandBuffer)
-		{
-			const VkDevice device = s_renderVK->m_device;
-
-			setMemoryBarrier(
-				m_activeCommandBuffer
-				, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT
-				, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT
-			);
-			
-			VK_CHECK(vkEndCommandBuffer(m_activeCommandBuffer));
-
-			m_completedFence = m_currentFence;
-			m_currentFence = VK_NULL_HANDLE;
-
-			VK_CHECK(vkResetFences(device, 1, &m_completedFence));
-
-			VkCommandBufferSubmitInfoKHR cmdBufInfo{};
-			cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO_KHR;
-			cmdBufInfo.pNext = nullptr;
-			cmdBufInfo.deviceMask = 0x1;
-			cmdBufInfo.commandBuffer = m_activeCommandBuffer;
-
-
-			uint64_t acquKey = 0/*frameIdx*/;
-			uint64_t relKey = 1/*frameIdx + 1*/;
-			//uint32_t timeOut = UINT32_MAX;
-			uint32_t timeOut = 1000;
-			VkWin32KeyedMutexAcquireReleaseInfoKHR kmInfo{};
-			kmInfo.sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
-			kmInfo.pNext = nullptr;
-			kmInfo.acquireCount = 1;
-			kmInfo.pAcquireSyncs = &m_externalMemory;
-			kmInfo.pAcquireKeys = &acquKey;
-			kmInfo.pAcquireTimeouts = &timeOut;
-			kmInfo.releaseCount = 1;
-			kmInfo.pReleaseSyncs = &m_externalMemory;
-			kmInfo.pReleaseKeys = &relKey;
-			
-
-			// Only timeline semaphores work, no idea why this code kinda worked with the integrated intel GPU
-			/*VkSemaphoreSubmitInfoKHR waitSemaInfo{};
-			waitSemaInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-			waitSemaInfo.pNext = nullptr;
-			waitSemaInfo.deviceIndex = 0;
-			waitSemaInfo.semaphore = m_waitSemaphores[0];
-			waitSemaInfo.stageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-			waitSemaInfo.value = frameIdx;
-
-			VkSemaphoreSubmitInfoKHR signalSemaInfo{};
-			signalSemaInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-			signalSemaInfo.pNext = nullptr;
-			signalSemaInfo.deviceIndex = 0;
-			signalSemaInfo.semaphore = m_signalSemaphores[0];
-			signalSemaInfo.stageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-			signalSemaInfo.value = (frameIdx + 1)%2;*/
-
-			VkSubmitInfo2 si2{};
-			si2.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2_KHR;
-			si2.pNext = &kmInfo;
-			si2.commandBufferInfoCount = 1;
-			si2.pCommandBufferInfos = &cmdBufInfo;	
-
-			m_numWaitSemaphores = 0;
-			m_numSignalSemaphores = 0;
-
-			{
-				BGFX_PROFILER_SCOPE("CommandQueueVK::kick2 vkQueueSubmit", kColorDraw);
-				VK_CHECK(vkQueueSubmit2KHR(m_queue, 1, &si2, m_completedFence));
-			}
-
-			if (_wait)
-			{
-				BGFX_PROFILER_SCOPE("CommandQueue::kick2 vkWaitForFences", kColorDraw);
-				VK_CHECK(vkWaitForFences(device, 1, &m_completedFence, VK_TRUE, UINT64_MAX));
-			}
-
-			m_activeCommandBuffer = VK_NULL_HANDLE;
-			m_externalMemory = VK_NULL_HANDLE;
-
-			m_currentFrameInFlight = (m_currentFrameInFlight + 1) % m_numFramesInFlight;
-			m_submitted++;
-		}
-	}
-#endif
 
 	void CommandQueueVK::finish(bool _finishAll)
 	{

@@ -502,8 +502,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 	{
 		VkSemaphore ProducerSignals;
 		VkSemaphore ConsumerSignals;
-		VkSemaphore KeyedMutexSemaphoreWait;
-		VkSemaphore KeyedMutexSemaphoreSignal;
 	};
 
 	struct VertexBufferVK : public BufferVK
@@ -760,7 +758,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 
 #if defined (VK_EXPORTABLE_IMAGE)
 		bool m_exportableMemory;
-		void* m_importedMemoryHandle;
 #endif
 
 	private:
@@ -912,11 +909,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 
 
 		void kick(bool _wait = false);
-#if defined (VK_EXPORTABLE_IMAGE)
-		//This kich method uses the newer submitInfo2 info and consumes keyed mutex semaphores
-		void setExternalMemory(VkDeviceMemory mem);
-		void kick2(bool _wait = false, uint64_t frameIdx = 0);
-#endif
 		void finish(bool _finishAll = false);
 
 		void release(uint64_t _handle, VkObjectType _type);
@@ -952,10 +944,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 		VkPipelineStageFlags m_waitSemaphoreStages[BGFX_CONFIG_MAX_FRAME_BUFFERS];
 		uint32_t             m_numSignalSemaphores;
 		VkSemaphore          m_signalSemaphores[BGFX_CONFIG_MAX_FRAME_BUFFERS];
-
-#if defined (VK_EXPORTABLE_IMAGE)
-		VkDeviceMemory m_externalMemory;
-#endif
 
 		struct Resource
 		{
