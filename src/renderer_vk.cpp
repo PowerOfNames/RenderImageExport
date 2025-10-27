@@ -1013,6 +1013,8 @@ VK_IMPORT_DEVICE
 		, uint32_t _levelCount = VK_REMAINING_MIP_LEVELS
 		, uint32_t _baseArrayLayer = 0
 		, uint32_t _layerCount = VK_REMAINING_ARRAY_LAYERS
+		, uint32_t _srcQueueFamilyIdx = VK_QUEUE_FAMILY_IGNORED
+		, uint32_t _dstQueueFamilyIdx = VK_QUEUE_FAMILY_IGNORED
 		)
 	{
 		BX_ASSERT(true
@@ -1141,8 +1143,8 @@ VK_IMPORT_DEVICE
 		imb.dstAccessMask = dstAccessMask;
 		imb.oldLayout = _oldLayout;
 		imb.newLayout = _newLayout;
-		imb.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imb.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imb.srcQueueFamilyIndex = _srcQueueFamilyIdx;
+		imb.dstQueueFamilyIndex = _dstQueueFamilyIdx;
 		imb.image = _image;
 		imb.subresourceRange.aspectMask     = _aspectMask;
 		imb.subresourceRange.baseMipLevel   = _baseMipLevel;
@@ -4476,10 +4478,10 @@ VK_IMPORT_DEVICE
 				// stall for commandbuffer to finish
 				kick(true);
 
-				readback.copyImageToImage(m_commandBuffer, layout, _image.m_textureImage, _image.m_currentImageLayout, VK_IMAGE_ASPECT_COLOR_BIT);
+				readback.copyImageToImage(m_commandBuffer, layout, _image.m_textureImage, _image.m_currentImageLayout, VK_IMAGE_ASPECT_COLOR_BIT, 0, true);
 
 				const ExportableSyncObjectVk& sync = m_exportableSyncObjects[_exportableSync.idx];
-				m_cmd.addWaitSemaphore(sync.ConsumerSignals);
+ 				m_cmd.addWaitSemaphore(sync.ConsumerSignals);
 				m_cmd.addSignalSemaphore(sync.ProducerSignals);
 				kick(true);
 
@@ -6418,7 +6420,7 @@ VK_DESTROY
 			);
 	}
 
-	void ReadbackVK::copyImageToImage(VkCommandBuffer _commandBuffer, VkImageLayout _srcLayout, VkImage _dstImage, VkImageLayout _dstLayout, VkImageAspectFlags _aspect, uint8_t _mip) const
+	void ReadbackVK::copyImageToImage(VkCommandBuffer _commandBuffer, VkImageLayout _srcLayout, VkImage _dstImage, VkImageLayout _dstLayout, VkImageAspectFlags _aspect, uint8_t _mip, bool _externallyAccessibleTarget) const
 	{
 		BGFX_PROFILER_SCOPE("ReadbackVK::copyImageToImage", kColorFrame);
 		uint32_t mipWidth = bx::uint32_max(1, m_width >> _mip);
@@ -6446,6 +6448,8 @@ VK_DESTROY
 			, 1
 			, 0
 			, 1
+			, _externallyAccessibleTarget ? VK_QUEUE_FAMILY_EXTERNAL	: VK_QUEUE_FAMILY_IGNORED
+			, _externallyAccessibleTarget ? 0							: VK_QUEUE_FAMILY_IGNORED
 		);
 
 		VkImageCopy ic;
@@ -6488,11 +6492,13 @@ VK_DESTROY
 			, _dstImage
 			, _aspect
 			, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-			, _dstLayout
+			, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
 			, _mip
 			, 1
 			, 0
 			, 1
+			, _externallyAccessibleTarget ? 0							: VK_QUEUE_FAMILY_IGNORED
+			, _externallyAccessibleTarget ? VK_QUEUE_FAMILY_EXTERNAL	: VK_QUEUE_FAMILY_IGNORED
 		);
 	}
 
