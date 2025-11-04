@@ -2501,13 +2501,12 @@ VK_IMPORT_DEVICE
 
 		void createExportableSyncObject(ExportableSyncObjectHandle _exportable) override
 		{
-			VkSemaphoreTypeCreateInfo stci;
+			VkSemaphoreTypeCreateInfo stci{};
 			stci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
 			stci.pNext = NULL;
 			stci.semaphoreType = VK_SEMAPHORE_TYPE_BINARY;
-			stci.initialValue = 0;
 
-			VkExportSemaphoreCreateInfo esci;
+			VkExportSemaphoreCreateInfo esci{};
 			esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
 #if defined(BX_PLATFORM_WINDOWS)
 			VkExportSemaphoreWin32HandleInfoKHR es32ci{};
@@ -2521,7 +2520,7 @@ VK_IMPORT_DEVICE
 			esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif
 
-			VkSemaphoreCreateInfo sci;
+			VkSemaphoreCreateInfo sci{};
 			sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 			sci.pNext = &esci;
 			sci.flags = 0;
