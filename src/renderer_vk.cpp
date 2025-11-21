@@ -1070,6 +1070,7 @@ VK_IMPORT_DEVICE
 
 		case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
 			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 			break;
 
 		case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
@@ -1083,6 +1084,8 @@ VK_IMPORT_DEVICE
 			break;
 
 		case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+			srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			break;
 
 		default:
@@ -2528,6 +2531,10 @@ VK_IMPORT_DEVICE
 			auto& exportable = m_exportableSyncObjects[_exportable.idx];
 			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.ProducerSignals));
 			VK_CHECK(vkCreateSemaphore(m_device, &sci, m_allocatorCb, &exportable.ConsumerSignals));
+
+			//initial signal for the first producer (BGFX) loop
+			//m_cmd.addSignalSemaphore(exportable.ConsumerSignals);
+			//kick(false);
 		}
 
 		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override
@@ -2543,13 +2550,7 @@ VK_IMPORT_DEVICE
 				BX_TRACE("Unable to update external image");
 				return;
 			}
-						
-			const uint8_t bpp = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(swapChain.m_colorFormat));
-			const uint32_t size = frameBuffer.m_width * frameBuffer.m_height * bpp / 8;
-
-			const TextureVK& texture = m_textures[_exportableImage.idx];
-
-			readSwapChainToImage(swapChain, texture, _exportableSync);
+			readSwapChainToImage(swapChain, m_textures[_exportableImage.idx], _exportableSync);
 		}
 
 
@@ -4480,9 +4481,18 @@ VK_IMPORT_DEVICE
 				readback.copyImageToImage(m_commandBuffer, layout, _image.m_textureImage, _image.m_currentImageLayout, VK_IMAGE_ASPECT_COLOR_BIT, 0, true);
 
 				const ExportableSyncObjectVk& sync = m_exportableSyncObjects[_exportableSync.idx];
+
+				//if standalone/no external consumer
+				m_cmd.addSignalSemaphore(sync.ConsumerSignals);
+				kick(false);
+
  				m_cmd.addWaitSemaphore(sync.ConsumerSignals);
 				m_cmd.addSignalSemaphore(sync.ProducerSignals);
 				kick(true);
+
+				//if standalone/no external consumer
+				m_cmd.addWaitSemaphore(sync.ProducerSignals);
+				kick(false);
 
 				readback.destroy();
 
@@ -4853,16 +4863,19 @@ VK_IMPORT_DEVICE
 			// now to map a single allocation multiple times.
 			// The argument is there to indicate this, but it's ignored right now, for the above
 			// reason: any cached memory is fine, as long as we don't partition it.
-			BX_UNUSED(_forcePrivateDeviceAllocation);
-			{
-				// Check LRU cache.
-				int memoryType = selectMemoryType(requirements->memoryTypeBits, propertyFlags, 0);
-				bool found = m_memoryLru.find(bx::narrowCast<uint32_t>(requirements->size), memoryType, memory);
-				if (found)
-				{
-					return VK_SUCCESS;
-				}
-			}
+			//
+			// EDIT: PowerOfNames -> we cant use this here becasue VkDedicatedMemory requires a VkImage handle
+			// -> the memory is therefore strongly connected to the image and needs to be freed and cannot be reused like this
+			//BX_UNUSED(_forcePrivateDeviceAllocation);
+			//{
+			//	// Check LRU cache.
+			//	int memoryType = selectMemoryType(requirements->memoryTypeBits, propertyFlags, 0);
+			//	bool found = m_memoryLru.find(bx::narrowCast<uint32_t>(requirements->size), memoryType, memory);
+			//	if (found)
+			//	{
+			//		return VK_SUCCESS;
+			//	}
+			//}
 
 			VkMemoryAllocateInfo memAlloc;
 			memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
