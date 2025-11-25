@@ -2585,7 +2585,9 @@ VK_IMPORT_DEVICE
 
 
 			VkResult result = vkGetPhysicalDeviceImageFormatProperties2(m_physicalDevice, &pdici2, &props2);
-			if (result == VK_SUCCESS)
+
+			//Debug print to gather information about export/import capabilities
+			/*if (result == VK_SUCCESS)
 			{
 				std::cout << "ExternalMemoryFeatures: 0x"
 					<< std::hex << exProps.externalMemoryProperties.externalMemoryFeatures << std::dec << "\n";
@@ -2621,7 +2623,7 @@ VK_IMPORT_DEVICE
 				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT, "D3D12 Resource");
 				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, "Host Allocation (EXT)");
 				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT, "Host Mapped Foreign Memory (EXT)");
-			}
+			}*/
 			
 
 #if defined (BX_PLATFORM_WINDOWS)
