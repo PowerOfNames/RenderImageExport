@@ -27,8 +27,10 @@
 #	define VK_IMPORT_INSTANCE_PLATFORM
 #endif // BX_PLATFORM_*
 
+#define VK_NO_STDDEF_H
 #define VK_NO_STDINT_H
 #define VK_NO_PROTOTYPES
+//#define VK_USE_64_BIT_PTR_DEFINES 0
 #include <vulkan-local/vulkan.h>
 #include <vulkan-local/vulkan_beta.h>
 
@@ -90,7 +92,7 @@
 			VK_IMPORT_INSTANCE_FUNC(false, vkEnumeratePhysicalDevices);                \
 			VK_IMPORT_INSTANCE_FUNC(false, vkEnumerateDeviceExtensionProperties);      \
 			VK_IMPORT_INSTANCE_FUNC(false, vkEnumerateDeviceLayerProperties);          \
-			VK_IMPORT_INSTANCE_FUNC(false, vkGetPhysicalDeviceProperties);             \
+			VK_IMPORT_INSTANCE_FUNC(false, vkGetPhysicalDeviceProperties2);            \
 			VK_IMPORT_INSTANCE_FUNC(false, vkGetPhysicalDeviceFormatProperties);       \
 			VK_IMPORT_INSTANCE_FUNC(false, vkGetPhysicalDeviceFeatures);               \
 			VK_IMPORT_INSTANCE_FUNC(false, vkGetPhysicalDeviceImageFormatProperties);  \
@@ -106,13 +108,14 @@
 			VK_IMPORT_INSTANCE_FUNC(true,  vkDestroySurfaceKHR);                       \
 			/* VK_KHR_get_physical_device_properties2 */                               \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceFeatures2KHR);           \
-			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceProperties2);           \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceMemoryProperties2KHR);   \
-			VK_IMPORT_INSTANCE_FUNC(true, vkGetPhysicalDeviceImageFormatProperties2);  \
+			VK_IMPORT_INSTANCE_FUNC(true,  vkGetPhysicalDeviceImageFormatProperties2); \
 																					   \
 			/* VK_EXT_debug_report */                                                  \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkCreateDebugReportCallbackEXT);            \
 			VK_IMPORT_INSTANCE_FUNC(true,  vkDestroyDebugReportCallbackEXT);           \
+			/* VK_KHR_fragment_shading_rate */                                         \
+			VK_IMPORT_INSTANCE_FUNC(true, vkGetPhysicalDeviceFragmentShadingRatesKHR); \
 			VK_IMPORT_INSTANCE_PLATFORM
 
 #define VK_IMPORT_DEVICE                                                    \
@@ -223,6 +226,8 @@
 			/* VK_KHR_draw_indirect_count */                                \
 			VK_IMPORT_DEVICE_FUNC(true,  vkCmdDrawIndirectCountKHR);        \
 			VK_IMPORT_DEVICE_FUNC(true,  vkCmdDrawIndexedIndirectCountKHR); \
+			/* VK_KHR_fragment_shading_rate */                                        \
+			VK_IMPORT_DEVICE_FUNC(true, vkCmdSetFragmentShadingRateKHR);              \
 			/*VK_KHR_external_memory_win32*/								\
 			VK_IMPORT_DEVICE_FUNC(true,  vkGetMemoryWin32HandleKHR);		\
 			/*VK_KHR_external_semaphore_win32*/								\
@@ -231,7 +236,6 @@
 			VK_IMPORT_DEVICE_FUNC(true,  vkGetMemoryFdKHR);					\
 			/*VK_KHR_external_semaphore_fd*/								\
 			VK_IMPORT_DEVICE_FUNC(true,  vkGetSemaphoreFdKHR);				\
-
 
 #define VK_DESTROY                                \
 			VK_DESTROY_FUNC(Buffer);              \
@@ -252,17 +256,19 @@
 			VK_DESTROY_FUNC(ShaderModule);        \
 			VK_DESTROY_FUNC(SwapchainKHR);        \
 
-#define _VK_CHECK(_check, _call)                                                                                \
-				BX_MACRO_BLOCK_BEGIN                                                                            \
-					/*BX_TRACE(#_call);*/                                                                       \
-					VkResult vkresult = _call;                                                                  \
-					_check(VK_SUCCESS == vkresult, #_call "; VK error 0x%x: %s", vkresult, getName(vkresult) ); \
+#define _VK_CHECK(_check, _call)                                                                              \
+				BX_MACRO_BLOCK_BEGIN                                                                          \
+					/*BX_TRACE(#_call);*/                                                                     \
+					VkResult vkresult = _call;                                                                \
+					_check(VK_SUCCESS == vkresult, #_call "; VK error %d: %s", vkresult, getName(vkresult) ); \
 				BX_MACRO_BLOCK_END
 
 #if BGFX_CONFIG_DEBUG
-#	define VK_CHECK(_call) _VK_CHECK(BX_ASSERT, _call)
+#	define VK_CHECK(_call)   _VK_CHECK(BX_ASSERT, _call)
+#	define VK_CHECK_W(_call) _VK_CHECK(BX_WARN, _call)
 #else
-#	define VK_CHECK(_call) _call
+#	define VK_CHECK(_call)   _call
+#	define VK_CHECK_W(_call) _call
 #endif // BGFX_CONFIG_DEBUG
 
 #if BGFX_CONFIG_DEBUG_ANNOTATION
@@ -440,14 +446,13 @@ VK_DESTROY_FUNC(DescriptorSet);
 		bool     m_isFromScratch;
 	};
 
-	class ScratchBufferVK
+	struct StagingScratchBufferVK
 	{
-	public:
-		ScratchBufferVK()
+		StagingScratchBufferVK()
 		{
 		}
 
-		~ScratchBufferVK()
+		~StagingScratchBufferVK()
 		{
 		}
 
@@ -455,7 +460,7 @@ VK_DESTROY_FUNC(DescriptorSet);
 		void createUniform(uint32_t _size, uint32_t _count);
 		void createStaging(uint32_t _size);
 		void destroy();
-		uint32_t alloc(uint32_t _size, uint32_t _minAlign = 1);
+		uint32_t alloc(uint32_t _size, uint32_t _minAlign);
 		uint32_t write(const void* _data, uint32_t _size, uint32_t _minAlign = 1);
 		void flush(bool _reset = true);
 
@@ -464,8 +469,60 @@ VK_DESTROY_FUNC(DescriptorSet);
 
 		uint8_t* m_data;
 		uint32_t m_size;
-		uint32_t m_pos;
+		uint32_t m_chunkPos;
 		uint32_t m_align;
+	};
+
+	struct ChunkedScratchBufferOffset
+	{
+		VkBuffer buffer;
+		uint32_t offsets[2];
+	};
+
+	struct ChunkedScratchBufferAlloc
+	{
+		uint32_t offset;
+		uint32_t chunkIdx;
+	};
+
+	struct ChunkedScratchBufferVK
+	{
+		ChunkedScratchBufferVK()
+			: m_chunkControl(0)
+		{
+		}
+
+		void create(uint32_t _chunkSize, uint32_t _numChunks, VkBufferUsageFlags usage, uint32_t _align);
+		void createUniform(uint32_t _chunkSize, uint32_t _numChunks);
+		void destroy();
+
+		void addChunk(uint32_t _at = UINT32_MAX);
+		ChunkedScratchBufferAlloc alloc(uint32_t _size);
+
+		void write(ChunkedScratchBufferOffset& _outSbo, const void* _vsData, uint32_t _vsSize, const void* _fsData = NULL, uint32_t _fsSize = 0);
+
+		void begin();
+		void end();
+
+		struct Chunk
+		{
+			VkBuffer buffer;
+			DeviceMemoryAllocationVK deviceMem;
+			uint8_t* data;
+		};
+
+		using ScratchBufferChunksArray = stl::vector<Chunk>;
+
+		ScratchBufferChunksArray m_chunks;
+		bx::RingBufferControl m_chunkControl;
+
+		uint32_t m_chunkPos;
+		uint32_t m_chunkSize;
+		uint32_t m_align;
+		VkBufferUsageFlags m_usage;
+
+		uint32_t m_consume[BGFX_CONFIG_MAX_FRAME_LATENCY];
+		uint32_t m_totalUsed;
 	};
 
 	struct BufferVK
@@ -703,6 +760,7 @@ VK_DESTROY_FUNC(DescriptorSet);
 			: m_directAccessPtr(NULL)
 			, m_sampler({ 1, VK_SAMPLE_COUNT_1_BIT })
 			, m_format(VK_FORMAT_UNDEFINED)
+			, m_aspectFlags(VK_IMAGE_ASPECT_NONE)
 			, m_textureImage(VK_NULL_HANDLE)
 			, m_textureDeviceMem()
 			, m_currentImageLayout(VK_IMAGE_LAYOUT_UNDEFINED)
@@ -742,7 +800,7 @@ VK_DESTROY_FUNC(DescriptorSet);
 		VkImageViewType    m_type;
 		VkFormat           m_format;
 		VkComponentMapping m_components;
-		VkImageAspectFlags m_aspectMask;
+		VkImageAspectFlags m_aspectFlags;
 
 		VkImage					 m_textureImage;
 		DeviceMemoryAllocationVK m_textureDeviceMem;
@@ -774,11 +832,12 @@ VK_DESTROY_FUNC(DescriptorSet);
 			, m_swapChain(VK_NULL_HANDLE)
 			, m_lastImageRenderedSemaphore(VK_NULL_HANDLE)
 			, m_lastImageAcquiredSemaphore(VK_NULL_HANDLE)
+			, m_backBufferDepthStencilImageView(VK_NULL_HANDLE)
 			, m_backBufferColorMsaaImageView(VK_NULL_HANDLE)
 		{
 		}
 
-		VkResult create(VkCommandBuffer _commandBuffer, void* _nwh, const Resolution& _resolution, TextureFormat::Enum _depthFormat = TextureFormat::Count);
+		VkResult create(VkCommandBuffer _commandBuffer, void* _nwh, const Resolution& _resolution);
 
 		void destroy();
 
@@ -801,6 +860,8 @@ VK_DESTROY_FUNC(DescriptorSet);
 		void present();
 
 		void transitionImage(VkCommandBuffer _commandBuffer);
+
+		bool hasDepthStencil() const { return VK_NULL_HANDLE != m_backBufferDepthStencilImageView; }
 
 		VkQueue m_queue;
 		VkSwapchainCreateInfoKHR m_sci;
@@ -867,6 +928,8 @@ VK_DESTROY_FUNC(DescriptorSet);
 		void preReset();
 		void postReset();
 
+		VkRenderPass getRenderPass(uint16_t _clearFlags) const;
+
 		void resolve();
 
 		bool acquire(VkCommandBuffer _commandBuffer);
@@ -898,11 +961,11 @@ VK_DESTROY_FUNC(DescriptorSet);
 
 	struct CommandQueueVK
 	{
-		VkResult init(uint32_t _queueFamily, VkQueue _queue, uint32_t _numFramesInFlight);
+		VkResult init(uint32_t _queueFamily, VkQueue _queue);
 		VkResult reset();
 		void shutdown();
 
-		VkResult alloc(VkCommandBuffer* _commandBuffer);
+		VkResult alloc(VkCommandBuffer* _outCommandBuffer);
 		void addWaitSemaphore(VkSemaphore _semaphore, VkPipelineStageFlags _waitFlags = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 		void addSignalSemaphore(VkSemaphore _semaphore);
 
@@ -917,8 +980,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 
 		uint32_t m_queueFamily;
 		VkQueue m_queue;
-
-		uint32_t m_numFramesInFlight;
 
 		uint32_t m_currentFrameInFlight;
 		uint32_t m_consumeIndex;
@@ -954,7 +1015,6 @@ VK_DESTROY_FUNC(DescriptorSet);
 		typedef stl::vector<Resource> ResourceArray;
 		ResourceArray m_release[BGFX_CONFIG_MAX_FRAME_LATENCY];
 		stl::vector<DeviceMemoryAllocationVK> m_recycleAllocs[BGFX_CONFIG_MAX_FRAME_LATENCY];
-
 
 	private:
 		template<typename Ty>
