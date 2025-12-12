@@ -3422,6 +3422,7 @@ namespace bgfx
 					TextureHandle handle;
 					_cmdbuf.read(handle);
 
+
 					m_renderCtx->destroyTexture(handle);
 				}
 				break;
@@ -3594,6 +3595,17 @@ namespace bgfx
 					_cmdbuf.read(handle);
 
 					m_renderCtx->createExportableSyncObject(handle);
+				}
+				break;
+
+			case CommandBuffer::DestroyExportableSyncObject:
+				{
+					BGFX_PROFILER_SCOPE("DestroyExportableSyncObject", 0xff2040ff);
+
+					ExportableSyncObjectHandle handle;
+					_cmdbuf.read(handle);
+
+					m_renderCtx->destroyExportableSyncObject(handle);
 				}
 				break;
 
@@ -5274,6 +5286,11 @@ namespace bgfx
 	ExportableSyncObjectHandle createExportableSyncObject()
 	{
 		return s_ctx->createExportableSyncObject();
+	}
+
+	void destroy(ExportableSyncObjectHandle _handle)
+	{
+		s_ctx->destroyExportableSyncObject(_handle);
 	}
 
 	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage)

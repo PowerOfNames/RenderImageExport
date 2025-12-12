@@ -2298,6 +2298,7 @@ VK_IMPORT_DEVICE
 			for (uint32_t ii = 0; ii < BX_COUNTOF(m_shaders); ++ii)
 			{
 				m_shaders[ii].destroy();
+
 			}
 
 			for (uint32_t ii = 0; ii < BX_COUNTOF(m_textures); ++ii)
@@ -2607,6 +2608,13 @@ VK_IMPORT_DEVICE
 			//initial signal for the first producer (BGFX) loop
 			//m_cmd.addSignalSemaphore(exportable.ConsumerSignals);
 			//kick(false);
+		}
+
+		void destroyExportableSyncObject(ExportableSyncObjectHandle _handle) override
+		{
+			auto& exportable = m_exportableSyncObjects[_handle.idx];
+			vkDestroy(exportable.ProducerSignals);
+			vkDestroy(exportable.ConsumerSignals);
 		}
 
 		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override

@@ -2086,6 +2086,11 @@ namespace bgfx { namespace d3d12
 			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
 		}
 
+		void destroyExportableSyncObject(ExportableSyncObjectHandle _exportable) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
 		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override
 		{
 			BX_WARN(true, "this function is currently only supported by the Vulkan backend");

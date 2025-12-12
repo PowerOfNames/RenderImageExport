@@ -204,6 +204,10 @@ namespace bgfx { namespace noop
 		{
 		}
 
+		void destroyExportableSyncObject(ExportableSyncObjectHandle _exportable) override
+		{
+		}
+
 		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override
 		{
 		}

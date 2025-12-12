@@ -2986,6 +2986,14 @@ namespace bgfx
 	/// -> Returns Invalid Handle if not using Vulkan OR BGFX_CONFIG_EXTERNAL_IMAGE is not set 
 	ExportableSyncObjectHandle createExportableSyncObject();
 
+	/// Destroy exportable sync object.
+	///
+	/// @param[in] _handle Exportable sync object handle.
+	///
+	/// @attention C99's equivalent binding is `bgfx_destroy_exportable_sync_object`.
+	///
+	void destroy(ExportableSyncObjectHandle _handle);
+
 	/// Returns the handle to native memory for exportable texture memory
 	/// @attention Only Platform supported: Vulkan on Windows and Linux
 	/// @attention Return needs to be cast to int on Linux systems

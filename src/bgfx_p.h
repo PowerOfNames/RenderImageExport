@@ -951,6 +951,7 @@ namespace bgfx
 			GetDeviceLuid,
 			GetDevicePciInfo,
 			CreateExportableSyncObject,
+			DestroyExportableSyncObject,
 			UpdateExportableImage,
 			GetNativeTextureMemoryHandle,
 			GetNativeSyncObjectMemoryHandle
@@ -3615,6 +3616,7 @@ namespace bgfx
 #endif //Platform
 		virtual void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function);
 		virtual void createExportableSyncObject(ExportableSyncObjectHandle _exportable) = 0;
+		virtual void destroyExportableSyncObject(ExportableSyncObjectHandle _handle) = 0;
 		virtual void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
 		virtual void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* _memSize);
 		virtual void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native);
@@ -5134,6 +5136,22 @@ namespace bgfx
 
 			return exportableSyncHandle;
 		}		
+
+		BGFX_API_FUNC(void destroyExportableSyncObject(ExportableSyncObjectHandle _handle))
+		{
+			BGFX_MUTEX_SCOPE(m_resourceApiLock);
+
+			BGFX_CHECK_HANDLE("destroyExportableSyncObject", m_exportableSyncObjectHandle, _handle);
+
+			if (!isValid(_handle))
+			{
+				BX_WARN(false, "Passing invalid sync object handle to bgfx::destroyExportableSyncObject");
+				return;
+			}
+
+			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::DestroyExportableSyncObject);
+			cmdBuf.write(_handle);
+		}
 
 		BGFX_API_FUNC(void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage))
 		{
