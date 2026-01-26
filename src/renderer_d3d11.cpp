@@ -1903,14 +1903,7 @@ namespace bgfx { namespace d3d11
 			release(mem);
 		}
 
-#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
-#if defined (BX_PLATFORM_WINDOWS)
-		void getDeviceLuid(uint8_t* luid) override
-		{
-			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
-		}
-
-#endif //Platform
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
 		void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function) override
 		{
 			BX_WARN(true, "this function is currently only supported by the Vulkan backend");

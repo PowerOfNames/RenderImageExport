@@ -2985,6 +2985,7 @@ namespace bgfx
 
 		if (NULL == m_renderCtx)
 		{
+			
 			uint8_t command;
 			_cmdbuf.read(command);
 
@@ -3556,17 +3557,7 @@ namespace bgfx
 				}
 				break;
 
-#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
-			case CommandBuffer::GetDeviceLuid:
-				{
-					BGFX_PROFILER_SCOPE("GetDeviceLuid", 0xff2040ff);
-
-					uint8_t* luid;
-					_cmdbuf.read(luid);
-					m_renderCtx->getDeviceLuid(luid);
-				}
-				break;
-
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
 			case CommandBuffer::GetDevicePciInfo:
 				{
 					BGFX_PROFILER_SCOPE("GetDevicePciInfo", 0xff2040ff);
@@ -5240,12 +5231,7 @@ namespace bgfx
 		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, NULL != _mem);
 	}
 
-#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
-	void getDeviceLuid(uint8_t* luid)
-	{
-		return s_ctx->getDeviceLuid(luid);
-	}
-
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
 	void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function)
 	{
 		return s_ctx->getDevicePciInfo(domain, bus, device, function);

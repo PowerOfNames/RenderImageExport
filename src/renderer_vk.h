@@ -14,9 +14,11 @@
 #	define VK_USE_PLATFORM_XLIB_KHR
 #	define VK_USE_PLATFORM_XCB_KHR
 #	define VK_IMPORT_INSTANCE_PLATFORM VK_IMPORT_INSTANCE_LINUX
+#   define VK_IMPORT_DEVICE_PLATFORM VK_IMPORT_DEVICE_LINUX
 #elif BX_PLATFORM_WINDOWS
 #	define VK_USE_PLATFORM_WIN32_KHR
 #	define VK_IMPORT_INSTANCE_PLATFORM VK_IMPORT_INSTANCE_WINDOWS
+#   define VK_IMPORT_DEVICE_PLATFORM VK_IMPORT_DEVICE_WINDOWS
 #elif BX_PLATFORM_OSX
 #	define VK_USE_PLATFORM_MACOS_MVK
 #	define VK_IMPORT_INSTANCE_PLATFORM VK_IMPORT_INSTANCE_MACOS
@@ -86,6 +88,20 @@
 #define VK_IMPORT_INSTANCE_NX \
 			/* VK_NN_vi_surface */                              \
 			VK_IMPORT_INSTANCE_FUNC(true, vkCreateViSurfaceNN); \
+
+
+#define VK_IMPORT_DEVICE_WINDOWS											\
+			/*VK_KHR_external_memory_win32*/								\
+			VK_IMPORT_DEVICE_FUNC(true,  vkGetMemoryWin32HandleKHR);		\
+			/*VK_KHR_external_semaphore_win32*/								\
+			VK_IMPORT_DEVICE_FUNC(true,  vkGetSemaphoreWin32HandleKHR);		\
+										
+#define VK_IMPORT_DEVICE_LINUX												\
+			/*VK_KHR_external_memory_fd*/									\
+			VK_IMPORT_DEVICE_FUNC(true,  vkGetMemoryFdKHR);					\
+			/*VK_KHR_external_semaphore_fd*/								\
+			VK_IMPORT_DEVICE_FUNC(true,  vkGetSemaphoreFdKHR);				\
+
 
 #define VK_IMPORT_INSTANCE                                                             \
 			VK_IMPORT_INSTANCE_FUNC(false, vkDestroyInstance);                         \
@@ -226,16 +242,10 @@
 			/* VK_KHR_draw_indirect_count */                                \
 			VK_IMPORT_DEVICE_FUNC(true,  vkCmdDrawIndirectCountKHR);        \
 			VK_IMPORT_DEVICE_FUNC(true,  vkCmdDrawIndexedIndirectCountKHR); \
-			/* VK_KHR_fragment_shading_rate */                                        \
-			VK_IMPORT_DEVICE_FUNC(true, vkCmdSetFragmentShadingRateKHR);              \
-			/*VK_KHR_external_memory_win32*/								\
-			VK_IMPORT_DEVICE_FUNC(true,  vkGetMemoryWin32HandleKHR);		\
-			/*VK_KHR_external_semaphore_win32*/								\
-			VK_IMPORT_DEVICE_FUNC(true,  vkGetSemaphoreWin32HandleKHR);		\
-			/*VK_KHR_external_memory_fd*/									\
-			VK_IMPORT_DEVICE_FUNC(true,  vkGetMemoryFdKHR);					\
-			/*VK_KHR_external_semaphore_fd*/								\
-			VK_IMPORT_DEVICE_FUNC(true,  vkGetSemaphoreFdKHR);				\
+			/* VK_KHR_fragment_shading_rate */                              \
+			VK_IMPORT_DEVICE_FUNC(true, vkCmdSetFragmentShadingRateKHR);	\
+			VK_IMPORT_DEVICE_PLATFORM
+
 
 #define VK_DESTROY                                \
 			VK_DESTROY_FUNC(Buffer);              \
@@ -295,7 +305,9 @@
 #endif // BGFX_CONFIG_DEBUG_ANNOTATION
 
 #if BGFX_CONFIG_EXPORTABLE_IMAGE
-#define VK_EXPORTABLE_IMAGE
+#define VK_EXPORTABLE_IMAGE 1
+#else
+#define VK_EXPORTABLE_IMAGE 0
 #endif
 
 #define BGFX_VK_PROFILER_BEGIN(_view, _abgr)                      \
