@@ -2618,15 +2618,6 @@ namespace bgfx
 						m_renderCtx->requestScreenShot(screenShot.handle, screenShot.filePath.getCPtr() );
 					}
 				}
-
-				{
-					BGFX_PROFILER_SCOPE("bgfx/ScreenshotForTextures", 0xff2040ff);
-					for (uint8_t ii = 0, num = m_render->m_numScreenShotTextures; ii < num; ++ii)
-					{
-						const ScreenShotTexture& screenShot = m_render->m_screenShotTexture[ii];
-						m_renderCtx->requestScreenShotForTexture(screenShot.handle, screenShot.filePath.getCPtr());
-					}
-				}
 			}
 
 			{
@@ -6052,12 +6043,6 @@ namespace bgfx
 	{
 		BGFX_CHECK_API_THREAD();
 		s_ctx->requestScreenShot(_handle, _filePath);
-	}
-
-	void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath)
-	{
-		BGFX_CHECK_API_THREAD();
-		s_ctx->requestScreenShotForTexture(_handle, _filePath);
 	}
 
 #undef BGFX_CHECK_ENCODER0

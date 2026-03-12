@@ -2157,15 +2157,6 @@ namespace bgfx { namespace d3d11
 			DX_RELEASE(backBuffer, 0);
 		}
 
-		/// <summary>
-		/// Not implemented!
-		/// </summary>
-		/// <param name="_handle"></param>
-		/// <param name="_filePath"></param>
-		void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath) override
-		{			
-		}
-
 		void updateViewName(ViewId _id, const char* _name) override
 		{
 			if (BX_ENABLED(BGFX_CONFIG_DEBUG_ANNOTATION) )

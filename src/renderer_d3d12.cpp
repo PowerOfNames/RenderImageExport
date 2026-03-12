@@ -2461,15 +2461,6 @@ namespace bgfx { namespace d3d12
 			DX_RELEASE(readback, 0);
 		}
 
-		/// <summary>
-		/// Not implemented!
-		/// </summary>
-		/// <param name="_handle"></param>
-		/// <param name="_filePath"></param>
-		void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath) override
-		{
-		}
-
 		void updateViewName(ViewId _id, const char* _name) override
 		{
 			bx::strCopy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED]

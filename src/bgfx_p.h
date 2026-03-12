@@ -2505,7 +2505,6 @@ namespace bgfx
 			m_capture = false;
 			m_flush   = false;
 			m_numScreenShots = 0;
-			m_numScreenShotTextures = 0;
 			m_frameNum = frameNum;
 		}
 
@@ -2640,9 +2639,6 @@ namespace bgfx
 
 		ScreenShot m_screenShot[BGFX_CONFIG_MAX_SCREENSHOTS];
 		uint8_t m_numScreenShots;
-
-		ScreenShotTexture m_screenShotTexture[BGFX_CONFIG_MAX_SCREENSHOTS];
-		uint8_t m_numScreenShotTextures;
 
 		CommandBuffer m_cmdPre;
 		CommandBuffer m_cmdPost;
@@ -3752,7 +3748,6 @@ namespace bgfx
 		virtual void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name) = 0;
 		virtual void destroyUniform(UniformHandle _handle) = 0;
 		virtual void requestScreenShot(FrameBufferHandle _handle, const char* _filePath) = 0;
-		virtual void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath) = 0;
 		virtual void updateViewName(ViewId _id, const char* _name) = 0;
 		virtual void updateUniform(uint16_t _loc, const void* _data, uint32_t _size) = 0;
 		virtual void invalidateOcclusionQuery(OcclusionQueryHandle _handle) = 0;
@@ -5832,43 +5827,6 @@ namespace bgfx
 			}
 
 			ScreenShot& screenShot = m_submit->m_screenShot[m_submit->m_numScreenShots++];
-			screenShot.handle = _handle;
-			screenShot.filePath.set(_filePath);
-		}
-
-		BGFX_API_FUNC(void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath))
-		{
-			BGFX_MUTEX_SCOPE(m_resourceApiLock);
-
-			BGFX_CHECK_HANDLE_INVALID_OK("requestScreenShotForTexture", m_textureHandle, _handle);
-
-			if (isValid(_handle))
-			{
-				const TextureRef& fbr = m_textureRef[_handle.idx];
-				/*if (!fbr.m_window)
-				{
-					BX_TRACE("requestScreenShot can be done only for window frame buffer handles (handle: %d).", _handle.idx);
-					return;
-				}*/
-			}
-
-			if (m_submit->m_numScreenShotTextures >= BGFX_CONFIG_MAX_SCREENSHOTS)
-			{
-				BX_TRACE("Only %d texture screenshots can be requested.", BGFX_CONFIG_MAX_SCREENSHOTS);
-				return;
-			}
-
-			for (uint8_t ii = 0, num = m_submit->m_numScreenShotTextures; ii < num; ++ii)
-			{
-				const ScreenShotTexture& screenShot = m_submit->m_screenShotTexture[ii];
-				if (screenShot.handle.idx == _handle.idx)
-				{
-					BX_TRACE("Already requested screenshot for texture on handle %d.", _handle.idx);
-					return;
-				}
-			}
-
-			ScreenShotTexture& screenShot = m_submit->m_screenShotTexture[m_submit->m_numScreenShotTextures++];
 			screenShot.handle = _handle;
 			screenShot.filePath.set(_filePath);
 		}

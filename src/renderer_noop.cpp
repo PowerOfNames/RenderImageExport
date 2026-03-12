@@ -244,10 +244,6 @@ namespace bgfx { namespace noop
 		{
 		}
 
-		void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath) override
-		{
-		}
-
 		void updateViewName(ViewId /*_id*/, const char* /*_name*/) override
 		{
 		}

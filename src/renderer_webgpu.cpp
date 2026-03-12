@@ -1676,6 +1676,38 @@ WGPU_IMPORT
 			release(mem);
 		}
 
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
+		void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
+		void createExportableSyncObject(ExportableSyncObjectHandle _exportable) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
+		void destroyExportableSyncObject(ExportableSyncObjectHandle _exportable) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
+		void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
+		void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* _memSize) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+
+		void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native) override
+		{
+			BX_WARN(true, "this function is currently only supported by the Vulkan backend");
+		}
+#endif
+
 		void overrideInternal(TextureHandle /*_handle*/, uintptr_t /*_ptr*/, uint16_t /*_layerIndex*/) override
 		{
 		}

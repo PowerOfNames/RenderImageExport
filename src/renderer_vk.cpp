@@ -2619,7 +2619,7 @@ VK_IMPORT_DEVICE
 				props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 				props2.pNext = &pciInfo;
 
-				vkGetPhysicalDeviceProperties2(m_physicalDevice, &props2);
+				vkGetPhysicalDeviceProperties2KHR(m_physicalDevice, &props2);
 				*domain = pciInfo.pciDomain;
 				*bus = pciInfo.pciBus;
 				*device = pciInfo.pciDevice;
@@ -2959,44 +2959,6 @@ VK_IMPORT_DEVICE
 			VK_CHECK(createReadbackBuffer(size, &stagingBuffer, &stagingMemory) );
 
 			readSwapChain(swapChain, stagingBuffer, stagingMemory, callback, _filePath);
-
-			vkDestroy(stagingBuffer);
-			recycleMemory(stagingMemory);
-		}
-				
-		void requestScreenShotForTexture(TextureHandle _handle, const char* _filePath) override
-		{
-			const TextureVK& texture = m_textures[_handle.idx];
-
-
-			auto callback = [](void* _src, uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _userData)
-				{
-					const char* filePath = (const char*)_userData;
-					g_callback->screenShot(
-						filePath
-						, _width
-						, _height
-						, _pitch
-						, _src
-						, _height * _pitch
-						, false
-					);
-				};
-
-			if (texture.m_format != VK_FORMAT_B8G8R8A8_UNORM && texture.m_format != VK_FORMAT_R8G8B8A8_UNORM)
-			{
-				BX_TRACE("Request screenshot vk - wrong image format found");
-				return;
-			}
-
-			const uint8_t bpp = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(TextureFormat::BGRA8));
-			const uint32_t size = texture.m_width * texture.m_height * bpp / 8;
-
-			DeviceMemoryAllocationVK stagingMemory;
-			VkBuffer stagingBuffer;
-			VK_CHECK(createReadbackBuffer(size, &stagingBuffer, &stagingMemory));
-
-			readImage(texture, stagingBuffer, stagingMemory, callback, _filePath);
 
 			vkDestroy(stagingBuffer);
 			recycleMemory(stagingMemory);
@@ -4650,62 +4612,62 @@ VK_IMPORT_DEVICE
 			return false;
 		}		
 
-		bool readImage(const TextureVK _image, VkBuffer _buffer, DeviceMemoryAllocationVK _memory, SwapChainReadFunc _func, const void* _userData = NULL)
-		{
-			VkImage image = _image.m_textureImage;
-			VkImageLayout layout = _image.m_currentImageLayout;
-			uint32_t width = _image.m_width;
-			uint32_t height = _image.m_height;
-			TextureFormat::Enum format;
-			if (_image.m_format == VK_FORMAT_B8G8R8A8_UNORM)
-				format = TextureFormat::BGRA8;
-			else if (_image.m_format == VK_FORMAT_R8G8B8A8_UNORM)
-				format = TextureFormat::RGBA8;
-			else
-				format = TextureFormat::Unknown;
+		//bool readImage(const TextureVK _image, VkBuffer _buffer, DeviceMemoryAllocationVK _memory, SwapChainReadFunc _func, const void* _userData = NULL)
+		//{
+		//	VkImage image = _image.m_textureImage;
+		//	VkImageLayout layout = _image.m_currentImageLayout;
+		//	uint32_t width = _image.m_width;
+		//	uint32_t height = _image.m_height;
+		//	TextureFormat::Enum format;
+		//	if (_image.m_format == VK_FORMAT_B8G8R8A8_UNORM)
+		//		format = TextureFormat::BGRA8;
+		//	else if (_image.m_format == VK_FORMAT_R8G8B8A8_UNORM)
+		//		format = TextureFormat::RGBA8;
+		//	else
+		//		format = TextureFormat::Unknown;
 
-			/*ReadbackVK readback;
-			readback.create(image, width, height, _image.m_textureFormat);*/
-			const uint32_t pitch = _image.m_readback.pitch();
+		//	/*ReadbackVK readback;
+		//	readback.create(image, width, height, _image.m_textureFormat);*/
+		//	const uint32_t pitch = _image.m_readback.pitch();
 
-			_image.m_readback.copyImageToBuffer(m_commandBuffer, _buffer, layout, VK_IMAGE_ASPECT_COLOR_BIT);
+		//	_image.m_readback.copyImageToBuffer(m_commandBuffer, _buffer, layout, VK_IMAGE_ASPECT_COLOR_BIT);
 
-			// stall for commandbuffer to finish
-			kick(true);
+		//	// stall for commandbuffer to finish
+		//	kick(true);
 
-			uint8_t* src;
-			VK_CHECK(vkMapMemory(m_device, _memory.mem, _memory.offset, _memory.size, 0, (void**)&src));
+		//	uint8_t* src;
+		//	VK_CHECK(vkMapMemory(m_device, _memory.mem, _memory.offset, _memory.size, 0, (void**)&src));
 
-			if (format == TextureFormat::RGBA8)
-			{
-				bimg::imageSwizzleBgra8(src, pitch, width, height, src, pitch);
-				_func(src, width, height, pitch, _userData);
-			}
-			else if (format == TextureFormat::BGRA8)
-			{
-				_func(src, width, height, pitch, _userData);
-			}
-			else
-			{
-				const uint8_t dstBpp = bimg::getBitsPerPixel(bimg::TextureFormat::BGRA8);
-				const uint32_t dstPitch = width * dstBpp / 8;
-				const uint32_t dstSize = height * dstPitch;
+		//	if (format == TextureFormat::RGBA8)
+		//	{
+		//		bimg::imageSwizzleBgra8(src, pitch, width, height, src, pitch);
+		//		_func(src, width, height, pitch, _userData);
+		//	}
+		//	else if (format == TextureFormat::BGRA8)
+		//	{
+		//		_func(src, width, height, pitch, _userData);
+		//	}
+		//	else
+		//	{
+		//		const uint8_t dstBpp = bimg::getBitsPerPixel(bimg::TextureFormat::BGRA8);
+		//		const uint32_t dstPitch = width * dstBpp / 8;
+		//		const uint32_t dstSize = height * dstPitch;
 
-				void* dst = bx::alloc(g_allocator, dstSize);
+		//		void* dst = bx::alloc(g_allocator, dstSize);
 
-				bimg::imageConvert(g_allocator, dst, bimg::TextureFormat::BGRA8, src, bimg::TextureFormat::Enum(format), width, height, 1);
+		//		bimg::imageConvert(g_allocator, dst, bimg::TextureFormat::BGRA8, src, bimg::TextureFormat::Enum(format), width, height, 1);
 
-				_func(dst, width, height, dstPitch, _userData);
+		//		_func(dst, width, height, dstPitch, _userData);
 
-				bx::free(g_allocator, dst);
-			}
+		//		bx::free(g_allocator, dst);
+		//	}
 
-			vkUnmapMemory(m_device, _memory.mem);
+		//	vkUnmapMemory(m_device, _memory.mem);
 
-			//readback.destroy();
+		//	//readback.destroy();
 
-			return true;
-		}
+		//	return true;
+		//}
 
 		void capture()
 		{
