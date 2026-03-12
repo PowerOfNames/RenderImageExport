@@ -2623,14 +2623,13 @@ VK_IMPORT_DEVICE
 				? m_frameBuffers[_handle.idx]
 				: m_backBuffer
 				;
+
 			const SwapChainVK& swapChain = frameBuffer.m_swapChain;
 
-			if (!isSwapChainReadable(swapChain))
+			if (isSwapChainReadable(swapChain))
 			{
-				BX_TRACE("Unable to update external image");
-				return;
+				readSwapChainToImage(swapChain, m_textures[_exportableImage.idx], _exportableSync);			
 			}
-			readSwapChainToImage(swapChain, m_textures[_exportableImage.idx], _exportableSync);
 		}
 
 
@@ -4602,7 +4601,7 @@ VK_IMPORT_DEVICE
 			}
 
 			return false;
-		}
+		}		
 
 		bool readImage(const TextureVK _image, VkBuffer _buffer, DeviceMemoryAllocationVK _memory, SwapChainReadFunc _func, const void* _userData = NULL)
 		{
