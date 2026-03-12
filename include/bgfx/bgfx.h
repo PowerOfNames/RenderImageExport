@@ -2070,13 +2070,6 @@ namespace bgfx
 	///
 	const char* getRendererName(RendererType::Enum _type);
 
-
-	void getDeviceLuid(uint8_t* luid);
-
-
-	void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function);
-
-
 	/// Initialize the bgfx library.
 	///
 	/// @param[in] _init Initialization parameters. See: `bgfx::Init` for more info.
@@ -2959,6 +2952,10 @@ namespace bgfx
 		, const Memory* _mem = NULL
 		);
 
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
+	void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function);
+	
+	
 	/// Create texture with size based on back-buffer ratio. Texture will maintain ratio
 	/// if back buffer resolution changes. Texture will be created with external memory accessibility.
 	/// Needs to be synced with externally accessible semaphores.
@@ -2976,16 +2973,16 @@ namespace bgfx
 	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
 	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
 	TextureHandle createExportableTexture2D(
-		  uint16_t _width
+		uint16_t _width
 		, uint16_t _height
 		, TextureFormat::Enum _format
 		, uint64_t _flags = BGFX_TEXTURE_NONE | BGFX_SAMPLER_NONE
-		);
-
+	);
+	
 	/// Creates an external syncronization object, if BGFX_CONFIG_EXTERNAL_IMAGE is set.
 	/// -> Returns Invalid Handle if not using Vulkan OR BGFX_CONFIG_EXTERNAL_IMAGE is not set 
 	ExportableSyncObjectHandle createExportableSyncObject();
-
+	
 	/// Destroy exportable sync object.
 	///
 	/// @param[in] _handle Exportable sync object handle.
@@ -2993,18 +2990,18 @@ namespace bgfx
 	/// @attention C99's equivalent binding is `bgfx_destroy_exportable_sync_object`.
 	///
 	void destroy(ExportableSyncObjectHandle _handle);
-
+	
 	/// Returns the handle to native memory for exportable texture memory
 	/// @attention Only Platform supported: Vulkan on Windows and Linux
 	/// @attention Return needs to be cast to int on Linux systems
 	void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* memSize);
-
-
+	
+	
 	/// Returns the handle to native memory for exportable sync object memory
 	/// @attention Only Platform supported: Vulkan on Windows and Linux.
 	/// @attention Return needs to be cast to int on Linux systems
 	void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native);
-
+	
 	/// Updated the memory by copying the latest swapchain render into it.
 	///
 	/// @param[in] _handle Handle of the framebuffer owning the swapchain.
@@ -3014,6 +3011,7 @@ namespace bgfx
 	/// @attention ALL BUT VULKAN: Backend is NOT IMPLEMENTED.
 	/// @attention C99's equivalent binding is NOT IMPLEMENTED.
 	void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
+#endif //ExportableImage
 
 
 

@@ -393,15 +393,15 @@ VK_IMPORT_DEVICE
 			KHR_wayland_surface,
 			KHR_xlib_surface,
 			KHR_xcb_surface,
-#		if defined(VK_EXPORTABLE_IMAGE)
+#		if VK_EXPORTABLE_IMAGE
 			KHR_external_memory_fd,
-			KHR_external_semaphore_kd,
+			KHR_external_semaphore_fd,
 			KHR_synchronization2,
 			EXT_pci_bus_info,
 #		endif
 #	elif BX_PLATFORM_WINDOWS
 			KHR_win32_surface,
-#		if defined(VK_EXPORTABLE_IMAGE)
+#		if VK_EXPORTABLE_IMAGE
 			KHR_external_memory_win32,
 			KHR_external_semaphore_win32,
 			KHR_win32_keyed_mutex,
@@ -424,7 +424,7 @@ VK_IMPORT_DEVICE
 		bool        m_initialize;
 		Layer::Enum m_layer;
 	};
-
+	
 	// Extension registry
 	//
 	static Extension s_extension[] =
@@ -445,9 +445,7 @@ VK_IMPORT_DEVICE
 		{ VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,    1, false, false, true,                                                          Layer::Count },
 		{ VK_KHR_XLIB_SURFACE_EXTENSION_NAME,       1, false, false, true,                                                          Layer::Count },
 		{ VK_KHR_XCB_SURFACE_EXTENSION_NAME,        1, false, false, true,                                                          Layer::Count },
-#		if defined(VK_EXPORTABLE_IMAGE)
-		// VK_KHR_external_memory is included since Vulkan 1.1
-		//{ "VK_KHR_external_memory",				1, false, false, true,															Layer::Count },
+#		if VK_EXPORTABLE_IMAGE
 		{ "VK_KHR_external_memory_fd",				1, false, false, true,															Layer::Count },
 		//vendor specific switch to VK_EXT_external_memory_dma_buf / VK_EXT_image_drm_format_modifier -> not supported yet
 		{ "VK_KHR_external_semaphore_fd",			1, false, false, true,															Layer::Count },
@@ -456,9 +454,7 @@ VK_IMPORT_DEVICE
 #		endif
 #	elif BX_PLATFORM_WINDOWS
 		{ VK_KHR_WIN32_SURFACE_EXTENSION_NAME,      1, false, false, true,                                                          Layer::Count },
-#		if defined(VK_EXPORTABLE_IMAGE)
-		// VK_KHR_external_memory is included since Vulkan 1.1
-		//{ "VK_KHR_external_memory",				1, false, false, true,															Layer::Count },
+#		if VK_EXPORTABLE_IMAGE
 		{ "VK_KHR_external_memory_win32",			1, false, false, true,															Layer::Count },
 		{ "VK_KHR_external_semaphore_win32",		1, false, false, true,															Layer::Count },
 		{ "VK_KHR_win32_keyed_mutex",				1, false, false, true,															Layer::Count },
@@ -1246,7 +1242,7 @@ VK_IMPORT_DEVICE
 			VkPhysicalDeviceCustomBorderColorFeaturesEXT customBorderColorFeatures = {};
 			VkPhysicalDeviceFragmentShadingRateFeaturesKHR fragmentShadingRate = {};
 
-#if defined (VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 			VkPhysicalDeviceSynchronization2Features sync2Features;
 			bx::memSet(&sync2Features, 0, sizeof(sync2Features));
 #endif
@@ -1661,7 +1657,7 @@ VK_IMPORT_INSTANCE
 						customBorderColorFeatures.pNext = NULL;
 					}
 
-#if defined (VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 					if (s_extension[Extension::KHR_synchronization2].m_supported)
 					{
 						next->pNext = (VkBaseOutStructure*)&sync2Features;
@@ -2526,29 +2522,7 @@ VK_IMPORT_DEVICE
 			bgfx::release(mem);
 		}
 
-#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)
-#if defined (BX_PLATFORM_WINDOWS)
-		void getDeviceLuid(uint8_t* luid) override
-		{
-			VkPhysicalDeviceIDProperties idProps{};
-			idProps.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
-
-			VkPhysicalDeviceProperties2 props2{};
-			props2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-			props2.pNext = &idProps;
-
-			vkGetPhysicalDeviceProperties2(m_physicalDevice, &props2);
-
-			if (idProps.deviceLUIDValid)
-			{
-				memcpy(luid, idProps.deviceLUID, VK_LUID_SIZE);
-			}
-			else
-			{
-				memcpy(luid, 0, VK_LUID_SIZE);
-			}
-		}
-#endif //Platform
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
 		void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function) override
 		{
 			if (s_extension[Extension::EXT_pci_bus_info].m_supported)
@@ -2584,14 +2558,14 @@ VK_IMPORT_DEVICE
 
 			VkExportSemaphoreCreateInfo esci{};
 			esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
-#if defined(BX_PLATFORM_WINDOWS)
+#if BX_PLATFORM_WINDOWS
 			VkExportSemaphoreWin32HandleInfoKHR es32ci{};
 			es32ci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR;
 			es32ci.pNext = &stci;
 
 			esci.pNext = &es32ci;
 			esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
-#elif defined (BX_PLATFORM_LINUX)
+#elif BX_PLATFORM_LINUX
 			esci.pNext = &stci;
 			esci.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif
@@ -2641,13 +2615,21 @@ VK_IMPORT_DEVICE
 			VkPhysicalDeviceExternalImageFormatInfo edeci{};
 			edeci.pNext = NULL;
 			edeci.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO;
+		#if BX_PLATFORM_WINDOWS
 			edeci.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+		#elif BX_PLATFORM_LINUX
+			edeci.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+		#endif
 
 			VkPhysicalDeviceImageFormatInfo2 pdici2{};
 			pdici2.pNext = &edeci;
 			pdici2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
 			pdici2.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+		//#if BX_PLATFORM_WINDOWS
 			pdici2.format = VK_FORMAT_R8G8B8A8_UNORM;
+		//#elif BX_PLATFORM_LINUX
+		//	pdici2.format = VK_FORMAT_B8G8R8A8_UNORM;
+		//#endif
 			pdici2.type = VK_IMAGE_TYPE_2D;
 			pdici2.tiling = VK_IMAGE_TILING_OPTIMAL;
 			pdici2.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -2666,7 +2648,7 @@ VK_IMPORT_DEVICE
 			VkResult result = vkGetPhysicalDeviceImageFormatProperties2(m_physicalDevice, &pdici2, &props2);
 
 			//Debug print to gather information about export/import capabilities
-			/*if (result == VK_SUCCESS)
+			if (result == VK_SUCCESS)
 			{
 				std::cout << "ExternalMemoryFeatures: 0x"
 					<< std::hex << exProps.externalMemoryProperties.externalMemoryFeatures << std::dec << "\n";
@@ -2702,10 +2684,10 @@ VK_IMPORT_DEVICE
 				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT, "D3D12 Resource");
 				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, "Host Allocation (EXT)");
 				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT, "Host Mapped Foreign Memory (EXT)");
-			}*/
-			
+			}
 
-#if defined (BX_PLATFORM_WINDOWS)
+
+#if BX_PLATFORM_WINDOWS
 			HANDLE h;
 			VkMemoryGetWin32HandleInfoKHR win32i;
 			win32i.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
@@ -2715,14 +2697,14 @@ VK_IMPORT_DEVICE
 
 			VK_CHECK(vkGetMemoryWin32HandleKHR(m_device, &win32i, &h));
 			*static_cast<HANDLE*>(_native) = h;
-#elif defined (BX_PLATFORM_LINUX)
+#elif BX_PLATFORM_LINUX
 			int h;
 			VkMemoryGetFdInfoKHR kdi;
 			kdi.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
 			kdi.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 			kdi.memory = memory;
-			*static_cast<int*>(_native) = h;
 			VK_CHECK(vkGetMemoryFdKHR(m_device, &kdi, &h));
+			*static_cast<int*>(_native) = h;
 #endif
 			VkMemoryRequirements imageMemReq;
 			vkGetImageMemoryRequirements(m_device, texture.m_textureImage, &imageMemReq);
@@ -2734,7 +2716,7 @@ VK_IMPORT_DEVICE
 			auto& exportable = m_exportableSyncObjects[_handle.idx];
 
 
-#if defined (BX_PLATFORM_WINDOWS)
+#if BX_PLATFORM_WINDOWS
 			struct NativeHandles
 			{
 				HANDLE ProducerSignalsHandle = nullptr;
@@ -2754,11 +2736,11 @@ VK_IMPORT_DEVICE
 			win32i.semaphore = exportable.ConsumerSignals;
 			VK_CHECK(vkGetSemaphoreWin32HandleKHR(m_device, &win32i, &h));
 			natives->ConsumerSignalsHandle = h;
-#elif defined (BX_PLATFORM_LINUX)
+#elif BX_PLATFORM_LINUX
 			struct NativeHandles
 			{
-				int ProducerSignalsHandle = nullptr;
-				int ConsumerSignalsHandle = nullptr;
+				int ProducerSignalsHandle = 0;
+				int ConsumerSignalsHandle = 0;
 			};
 			NativeHandles* natives = static_cast<NativeHandles*>(_native);
 			int h;
@@ -4951,7 +4933,7 @@ VK_IMPORT_DEVICE
 			return result;
 		}
 
-#if defined (VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 		VkResult allocateExternalImageMemory(const VkMemoryRequirements* requirements, VkMemoryPropertyFlags propertyFlags, DeviceMemoryAllocationVK* memory, VkImage image, bool _forcePrivateDeviceAllocation, bool _exportableAllocation)
 		{
 			BGFX_PROFILER_SCOPE("RendererContextVK::allocateMemory", kColorResource);
@@ -6896,7 +6878,7 @@ retry:
 		m_numMips = 1;
 		m_numSides = 1;
 
-#if defined (VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 		m_exportableMemory = false;
 #endif
 
@@ -6934,16 +6916,21 @@ retry:
 		VkImageCreateInfo ici;
 		ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		ici.pNext = nullptr;
-#if defined(VK_EXPORTABLE_IMAGE)
-		VkExternalMemoryImageCreateInfo emic;
-		emic.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
-		emic.pNext = NULL;
-#if defined (BX_PLATFORM_WINDOWS)
-		emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
-#elif defined (BX_PLATFORM_LINUX)
-		emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_FD_TEXTURE_BIT;
+		ici.format        = m_format;
+
+#if VK_EXPORTABLE_IMAGE
+		if(m_exportableMemory)
+		{
+			VkExternalMemoryImageCreateInfo emic;
+			emic.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
+			emic.pNext = NULL;
+#if BX_PLATFORM_WINDOWS
+			emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#elif BX_PLATFORM_LINUX
+			emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif // BX_PLATFORM_WINDOWS
-		ici.pNext = m_exportableMemory ? (const void*)&emic : NULL;
+			ici.pNext = m_exportableMemory ? (const void*)&emic : NULL;
+		}
 #endif // VK_EXPORTABLE_IMAGE
 
 		ici.flags = 0
@@ -6955,7 +6942,7 @@ retry:
 				? VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT_KHR
 				: 0
 				)
-#if defined(VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 			| (m_exportableMemory ? VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT : 0)
 #endif
 			;
@@ -6975,11 +6962,10 @@ retry:
 				: 0
 				)
 			| (m_flags & BGFX_TEXTURE_COMPUTE_WRITE ? VK_IMAGE_USAGE_STORAGE_BIT : 0)
-#if defined(VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 			| (m_exportableMemory ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0)
 #endif
 			;
-		ici.format        = m_format;
 		ici.samples       = m_sampler.Sample;
 		ici.mipLevels     = m_numMips;
 		ici.arrayLayers   = m_numSides;
@@ -7002,7 +6988,7 @@ retry:
 		VkMemoryRequirements imageMemReq;
 		vkGetImageMemoryRequirements(device, m_textureImage, &imageMemReq);
 
-#if defined(VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 		if(m_exportableMemory)
 			result = s_renderVK->allocateExternalImageMemory(&imageMemReq, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_textureDeviceMem, m_textureImage, false, m_exportableMemory);
 		else
@@ -7053,7 +7039,7 @@ retry:
 			VkMemoryRequirements imageMemReq_resolve;
 			vkGetImageMemoryRequirements(device, m_singleMsaaImage, &imageMemReq_resolve);
 
-#if defined(VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 			if (m_exportableMemory)
 				result = s_renderVK->allocateExternalImageMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, m_textureImage, false, m_exportableMemory);
 			else
@@ -7150,7 +7136,7 @@ retry:
 			const uint16_t numSides = ti.numLayers * (imageContainer.m_cubeMap ? 6 : 1);
 			const uint32_t numSrd = numSides * ti.numMips;
 
-#if defined (VK_EXPORTABLE_IMAGE)
+#if VK_EXPORTABLE_IMAGE
 			m_exportableMemory = imageContainer.m_exportableMemory;
 			BX_TRACE("Creating vkTexture with exportable mem: %d", (int)m_exportableMemory);
 #endif

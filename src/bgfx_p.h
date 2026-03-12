@@ -945,10 +945,8 @@ namespace bgfx
 			DestroyTexture,
 			DestroyFrameBuffer,
 			DestroyUniform,
-			ReadTexture
-#if defined(BGFX_CONFIG_EXPORTABLE_IMAGE)	
-			,								\
-			GetDeviceLuid,
+			ReadTexture,
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
 			GetDevicePciInfo,
 			CreateExportableSyncObject,
 			DestroyExportableSyncObject,
@@ -3610,16 +3608,13 @@ namespace bgfx
 		virtual void submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter) = 0;
 		virtual void blitSetup(TextVideoMemBlitter& _blitter) = 0;
 		virtual void blitRender(TextVideoMemBlitter& _blitter, uint32_t _numIndices) = 0;
-#if defined (BGFX_CONFIG_EXPORTABLE_IMAGE)
-#if defined (BX_PLATFORM_WINDOWS)
-		virtual void getDeviceLuid(uint8_t* luid);
-#endif //Platform
-		virtual void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function);
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
+		virtual void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function) = 0;
 		virtual void createExportableSyncObject(ExportableSyncObjectHandle _exportable) = 0;
 		virtual void destroyExportableSyncObject(ExportableSyncObjectHandle _handle) = 0;
-		virtual void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage);
-		virtual void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* _memSize);
-		virtual void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native);
+		virtual void updateExportableImage(FrameBufferHandle _handle, ExportableSyncObjectHandle _exportableSync, TextureHandle _exportableImage) = 0;
+		virtual void getNativeTextureMemoryHandle(TextureHandle _handle, void* _native, uint64_t* _memSize) = 0;
+		virtual void getNativeSyncObjectMemoryHandle(ExportableSyncObjectHandle _handle, void* _native) = 0;
 #endif
 	};
 
@@ -5099,16 +5094,7 @@ namespace bgfx
 			return handle;
 		}
 
-#if defined (BGFX_CONFIG_EXPORTABLE_IMAGE)
-		BGFX_API_FUNC(void getDeviceLuid(uint8_t* luid))
-		{
-			BGFX_MUTEX_SCOPE(m_resourceApiLock);
-
-
-			CommandBuffer& cmdBuf = getCommandBuffer(CommandBuffer::GetDeviceLuid);
-			cmdBuf.write(luid);
-		}
-
+#if BGFX_CONFIG_EXPORTABLE_IMAGE
 		BGFX_API_FUNC(void getDevicePciInfo(uint32_t* domain, uint32_t* bus, uint32_t* device, uint32_t* function))
 		{
 			BGFX_MUTEX_SCOPE(m_resourceApiLock);
