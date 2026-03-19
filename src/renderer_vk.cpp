@@ -2733,43 +2733,11 @@ VK_IMPORT_DEVICE
 			VkResult result = vkGetPhysicalDeviceImageFormatProperties2(m_physicalDevice, &pdici2, &props2);
 
 			//Debug print to gather information about export/import capabilities
-			if (result == VK_SUCCESS)
+			if (result != VK_SUCCESS)
 			{
-				std::cout << "ExternalMemoryFeatures: 0x"
-					<< std::hex << exProps.externalMemoryProperties.externalMemoryFeatures << std::dec << "\n";
-
-				if (exProps.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT) {
-					std::cout << "  - Requires dedicated allocation\n";
-				}
-				if (exProps.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) {
-					std::cout << "  - Exportable\n";
-				}
-				if (exProps.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT) {
-					std::cout << "  - Importable\n";
-				}
-				if (exProps.externalMemoryProperties.externalMemoryFeatures == 0) {
-					std::cout << "  - No external memory features supported for this combo\n";
-				}
-
-				std::cout << "ExportFromImportedHandleTypes: 0x"
-					<< std::hex << exProps.externalMemoryProperties.exportFromImportedHandleTypes << std::dec << "\n";
-				std::cout << "CompatibleHandleTypes: 0x"
-					<< std::hex << exProps.externalMemoryProperties.compatibleHandleTypes << std::dec << "\n";
-
-				auto check = [&](VkExternalMemoryHandleTypeFlagBits bit, const char* name) {
-					if (exProps.externalMemoryProperties.compatibleHandleTypes & bit) std::cout << "  - " << name << "\n";
-					};
-
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT, "Opaque FD");
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT, "Opaque Win32");
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT, "Opaque Win32 KMT");
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT, "D3D11 Texture");
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT, "D3D11 Texture KMT");
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT, "D3D12 Heap");
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT, "D3D12 Resource");
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, "Host Allocation (EXT)");
-				check(VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT, "Host Mapped Foreign Memory (EXT)");
-			}
+				std::cout << "Bgfx::renderer_vk::getNativeTextureMemoryHandle: failed to vkGetPhysicalDeviceImageFormatProperties2" << std::endl;
+				return;
+			}		
 
 
 #if BX_PLATFORM_WINDOWS
