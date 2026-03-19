@@ -4963,7 +4963,7 @@ VK_IMPORT_DEVICE
 #if VK_EXPORTABLE_IMAGE
 		VkResult allocateExternalImageMemory(const VkMemoryRequirements* requirements, VkMemoryPropertyFlags propertyFlags, DeviceMemoryAllocationVK* memory, VkImage image, bool _forcePrivateDeviceAllocation, bool _exportableAllocation)
 		{
-			BGFX_PROFILER_SCOPE("RendererContextVK::allocateMemory", kColorResource);
+			BGFX_PROFILER_SCOPE("RendererContextVK::allocateExternalImageMemory", kColorResource);
 
 			// Forcing the use of a private device allocation for a certain memory allocation
 			// can be desirable when memory mapping the allocation. A memory allocation
@@ -5026,7 +5026,7 @@ VK_IMPORT_DEVICE
 					memory->memoryTypeIndex = searchIndex;
 					memory->size = bx::narrowCast<uint32_t>(memAlloc.allocationSize);
 					memory->offset = 0;
-					result = vkAllocateMemory(m_device, &memAlloc, m_allocatorCb, &memory->mem);
+					result = vkAllocateMemory(m_device, &memAlloc, nullptr, &memory->mem);
 				}
 			} while (result != VK_SUCCESS
 				&& searchIndex >= 0);
@@ -6964,7 +6964,7 @@ retry:
 #elif BX_PLATFORM_LINUX
 			emic.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif // BX_PLATFORM_WINDOWS
-			ici.pNext = m_exportableMemory ? (const void*)&emic : NULL;
+			ici.pNext = (const void*)&emic;
 		}
 #endif // VK_EXPORTABLE_IMAGE
 
@@ -7086,14 +7086,14 @@ retry:
 			VkMemoryRequirements imageMemReq_resolve;
 			vkGetImageMemoryRequirements(device, m_singleMsaaImage, &imageMemReq_resolve);
 
-#if VK_EXPORTABLE_IMAGE
-			if (m_exportableMemory)
-				result = s_renderVK->allocateExternalImageMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, m_textureImage, false, m_exportableMemory);
-			else
-				result = s_renderVK->allocateMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, false);
-#else
+//#if VK_EXPORTABLE_IMAGE
+	//		if (m_exportableMemory)
+		//		result = s_renderVK->allocateExternalImageMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, m_textureImage, false, m_exportableMemory);
+			//else
+				//result = s_renderVK->allocateMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, false);
+//#else
 			result = s_renderVK->allocateMemory(&imageMemReq_resolve, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_singleMsaaDeviceMem, false);
-#endif
+//#endif
 
 			if (VK_SUCCESS != result)
 			{
@@ -7422,6 +7422,21 @@ retry:
 		const bool external       = 0 != (m_flags & BGFX_SAMPLER_INTERNAL_SHARED);
 //		const bool externalShared = 0 != (m_flags & BGFX_TEXTURE_EXTERNAL_SHARED);
 
+
+#if VK_EXPORTABLE_IMAGE
+		//Just a hack for now
+		if (m_exportableMemory && VK_NULL_HANDLE != m_textureImage)
+		{
+			vkDestroyImage(s_renderVK->m_device, m_textureImage, nullptr);
+			vkFreeMemory(s_renderVK->m_device, m_textureDeviceMem.mem, nullptr);
+			m_aspectFlags = VK_IMAGE_ASPECT_NONE;
+			m_currentImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			m_currentSingleMsaaImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			return;
+		}
+#endif
+
+
 		if (external)
 		{
 			s_renderVK->m_cmd.removeExternal({ uint16_t(this - s_renderVK->m_textures) });
@@ -7440,6 +7455,7 @@ retry:
 			s_renderVK->release(m_singleMsaaImage);
 			s_renderVK->recycleMemory(m_singleMsaaDeviceMem);
 		}
+
 
 		m_aspectFlags = VK_IMAGE_ASPECT_NONE;
 		m_currentImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
