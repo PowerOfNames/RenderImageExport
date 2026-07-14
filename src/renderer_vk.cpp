@@ -7392,11 +7392,22 @@ retry:
 
 
 #if VK_EXPORTABLE_IMAGE
-		//Just a hack for now
 		if (m_exportableMemory && VK_NULL_HANDLE != m_textureImage)
 		{
-			vkDestroyImage(s_renderVK->m_device, m_textureImage, nullptr);
-			vkFreeMemory(s_renderVK->m_device, m_textureDeviceMem.mem, nullptr);
+			// Exportable memory is allocated with VK_MEMORY_DEDICATED_ALLOCATE_INFO, tied to this one
+			// VkImage - unlike regular texture memory it can never be handed back to a different
+			// image, so it must not go through recycleMemory()/the memory LRU below (that's for
+			// reusable sub-allocations, not dedicated ones). It still needs the same GPU-completion-
+			// aware deferred destroy as every other Vulkan object, though: calling vkDestroyImage/
+			// vkFreeMemory synchronously here (the previous approach) could run while bgfx's own
+			// in-flight GPU work - or a consumer that imported this exported memory on a different
+			// device via the exported handle - is still using it, which crashed the Vulkan driver
+			// under rapid resize. release() defers both through the same per-frame-in-flight queue
+			// used for every other Vulkan object type (CommandQueueVK::consume(), same timing as the
+			// non-exportable path below), just without the reuse semantics that don't apply to a
+			// dedicated allocation.
+			s_renderVK->release(m_textureImage);
+			s_renderVK->release(m_textureDeviceMem.mem);
 			m_aspectFlags = VK_IMAGE_ASPECT_NONE;
 			m_currentImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			m_currentSingleMsaaImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
